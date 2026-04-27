@@ -7,24 +7,37 @@ const path = require('path');
 // ─── Config ───────────────────────────────────────────────────────────────────
 const DISCORD_TOKEN  = process.env.DISCORD_TOKEN;
 const CLIENT_ID      = process.env.DISCORD_CLIENT_ID;
-const EWGF_API_KEY   = process.env.EWGF_API_KEY;
-const BASE_URL       = 'api.ewgf.gg';
+const BASE_URL       = 'wank.wavu.wiki';
 const REGISTRY_FILE  = path.join('/app', 'registry.json');
 
-// ─── Player Registry ──────────────────────────────────────────────────────────
-function loadRegistry() {
-  try {
-    if (fs.existsSync(REGISTRY_FILE)) return JSON.parse(fs.readFileSync(REGISTRY_FILE, 'utf8'));
-  } catch (e) { console.error('Failed to load registry:', e.message); }
-  return {};
-}
+// ─── Character ID map (from wank.wavu.wiki replay data) ──────────────────────
+const CHARA_ID = {
+  0:  'Jin',        1:  'Kazuya',     2:  'Paul',       3:  'Law',
+  4:  'Jack-8',     5:  'King',       6:  'Jun',        7:  'Reina',
+  8:  'Lars',       9:  'Xiaoyu',     10: 'Hwoarang',   11: 'Yoshimitsu',
+  12: 'Leroy',      13: 'Asuka',      14: 'Lili',       15: 'Nina',
+  16: 'Lee',        17: 'Kuma',       18: 'Panda',      19: 'Feng',
+  20: 'Leo',        21: 'Steve',      22: 'Bryan',       23: 'Dragunov',
+  24: 'Raven',      25: 'Shaheen',    26: 'Claudio',    27: 'Alisa',
+  28: 'Zafina',     29: 'Victor',     30: 'Devil Jin',  31: 'Azucena',
+  32: 'Lidia',      33: 'Armor King', 34: 'Miary Zo',   35: 'Anna',
+  36: 'Eddy',       37: 'Heihachi',   38: 'Clive',      39: 'Fahkumram',
+  40: 'Reina',      41: 'Lars',       42: 'Xiaoyu',     43: 'Yoshimitsu',
+  44: 'Leroy',      45: 'Steve',
+};
 
-function saveRegistry(registry) {
-  try { fs.writeFileSync(REGISTRY_FILE, JSON.stringify(registry, null, 2)); }
-  catch (e) { console.error('Failed to save registry:', e.message); }
-}
+// ─── Rank ID map ──────────────────────────────────────────────────────────────
+const RANK_ID = {
+  0:  'Beginner',      1:  'Fighter',       2:  'Strategist',    3:  'Combatant',
+  4:  'Brawler',       5:  'Ranger',        6:  'Cavalry',       7:  'Warrior',
+  8:  'Assailant',     9:  'Dominator',     10: 'Vindicator',    11: 'Juggernaut',
+  12: 'Usurper',       13: 'Vanquisher',    14: 'Destroyer',     15: 'Eliminator',
+  16: 'Garyu',         17: 'Shinryu',       18: 'Tenryu',        19: 'Mighty Ruler',
+  20: 'Flame Ruler',   21: 'Battle Ruler',  22: 'Fujin',         23: 'Raijin',
+  24: 'Kishin',        25: 'Bushin',        26: 'Tekken King',   27: 'Tekken Emperor',
+  28: 'Tekken God',    29: 'Tekken God Supreme', 30: 'God of Destruction', 31: 'Tekken God Supreme', 32: 'God of Destruction',
+};
 
-// ─── Rank colours ─────────────────────────────────────────────────────────────
 const RANK_COLORS = {
   'Beginner': 0x808080, 'Fighter': 0xCD7F32, 'Strategist': 0xCD7F32,
   'Combatant': 0xC0C0C0, 'Brawler': 0xC0C0C0, 'Ranger': 0xFFD700,
@@ -39,17 +52,27 @@ const RANK_COLORS = {
   'Tekken God Supreme': 0xFFD700, 'God of Destruction': 0xFF4500,
 };
 
+// ─── Player Registry ──────────────────────────────────────────────────────────
+function loadRegistry() {
+  try {
+    if (fs.existsSync(REGISTRY_FILE)) return JSON.parse(fs.readFileSync(REGISTRY_FILE, 'utf8'));
+  } catch (e) { console.error('Failed to load registry:', e.message); }
+  return {};
+}
+
+function saveRegistry(registry) {
+  try { fs.writeFileSync(REGISTRY_FILE, JSON.stringify(registry, null, 2)); }
+  catch (e) { console.error('Failed to save registry:', e.message); }
+}
+
 // ─── HTTP helper ──────────────────────────────────────────────────────────────
-function apiGet(urlPath) {
+function httpGet(hostname, urlPath) {
   return new Promise((resolve, reject) => {
     const options = {
-      hostname: BASE_URL,
+      hostname,
       path: urlPath,
       method: 'GET',
-      headers: {
-        'Authorization': `Bearer ${EWGF_API_KEY}`,
-        'Accept-Encoding': 'gzip',
-      },
+      headers: { 'Accept-Encoding': 'gzip', 'User-Agent': 'TekkenAustriaBot/1.0' },
     };
 
     const req = https.request(options, (res) => {
@@ -64,17 +87,12 @@ function apiGet(urlPath) {
         decompress(buf).then((data) => {
           const raw = data.toString('utf8');
           try {
-            const json = JSON.parse(raw);
-            if (res.statusCode === 200) resolve(json);
-            else reject({ status: res.statusCode, body: json });
+            resolve({ status: res.statusCode, json: JSON.parse(raw) });
           } catch (e) {
-            console.error('Failed to parse JSON (status ' + res.statusCode + '):', raw.slice(0, 500));
-            reject(new Error('Failed to parse JSON (status ' + res.statusCode + ')'));
+            console.error('Failed to parse JSON:', raw.slice(0, 300));
+            reject(new Error('Failed to parse JSON'));
           }
-        }).catch((e) => {
-          console.error('Decompression error:', e.message);
-          reject(e);
-        });
+        }).catch(reject);
       });
     });
 
@@ -83,36 +101,96 @@ function apiGet(urlPath) {
   });
 }
 
-// ─── Stats from battles only ──────────────────────────────────────────────────
-function analyseGames(battles, tekkenId) {
+// ─── Fetch replays for a polaris ID ──────────────────────────────────────────
+// Scans up to MAX_BATCHES batches of replays to find the player
+const MAX_BATCHES = 5; // covers ~1 hour of recent games
+
+async function fetchPlayerReplays(polarisId) {
+  let before = Math.floor(Date.now() / 1000);
+  let playerBattles = [];
+  let playerName = null;
+
+  for (let i = 0; i < MAX_BATCHES; i++) {
+    const { json } = await httpGet(BASE_URL, `/api/replays?before=${before}`);
+    if (!Array.isArray(json) || json.length === 0) break;
+
+    for (const b of json) {
+      const isP1 = b.p1_polaris_id === polarisId;
+      const isP2 = b.p2_polaris_id === polarisId;
+      if (isP1 || isP2) {
+        playerBattles.push(b);
+        if (!playerName) playerName = isP1 ? b.p1_name : b.p2_name;
+      }
+    }
+
+    // Move before back by 700 seconds for next batch
+    before = json[json.length - 1].battle_at - 1;
+
+    // Stop early if we have enough games
+    if (playerBattles.length >= 50) break;
+  }
+
+  return { playerBattles, playerName };
+}
+
+// ─── Analyse battles ──────────────────────────────────────────────────────────
+function analyseBattles(battles, polarisId) {
   if (!battles || battles.length === 0) return null;
 
-  const last10 = battles.slice(0, 10);
+  const recent = battles.slice(0, 50);
   let wins = 0;
   const charCounts = {};
+  const charRatings = {}; // track glicko2 per char
+  let highestRank = -1;
+  let highestRankName = null;
 
-  for (const b of last10) {
-    const isP1 = b.p1_tekken_id === tekkenId;
-    if (isP1 ? b.winner === 1 : b.winner === 2) wins++;
-    const char = isP1 ? b.p1_char : b.p2_char;
-    charCounts[char] = (charCounts[char] || 0) + 1;
+  for (const b of recent) {
+    const isP1 = b.p1_polaris_id === polarisId;
+    const won = isP1 ? b.winner === 1 : b.winner === 2;
+    if (won) wins++;
+
+    const charaId = isP1 ? b.p1_chara_id : b.p2_chara_id;
+    const charName = CHARA_ID[charaId] ?? `Char#${charaId}`;
+    const rankId = isP1 ? b.p1_rank : b.p2_rank;
+    const rating = isP1 ? b.p1_rating_before : b.p2_rating_before;
+    const ratingChange = isP1 ? b.p1_rating_change : b.p2_rating_change;
+
+    charCounts[charName] = (charCounts[charName] || 0) + 1;
+
+    // Track latest rating per character
+    if (rating !== null && !charRatings[charName]) {
+      charRatings[charName] = { rating, ratingChange };
+    }
+
+    if (rankId > highestRank) {
+      highestRank = rankId;
+      highestRankName = RANK_ID[rankId] ?? `Rank#${rankId}`;
+    }
   }
 
   const charUsage = Object.entries(charCounts).sort((a, b) => b[1] - a[1]);
-  const latest = last10[0];
-  const isP1Latest = latest.p1_tekken_id === tekkenId;
+  const latest = recent[0];
+  const isP1Latest = latest.p1_polaris_id === polarisId;
+  const currentRankId = isP1Latest ? latest.p1_rank : latest.p2_rank;
 
   return {
     name: isP1Latest ? latest.p1_name : latest.p2_name,
-    gamesAnalysed: last10.length,
+    gamesAnalysed: recent.length,
     wins,
-    losses: last10.length - wins,
-    winRate: ((wins / last10.length) * 100).toFixed(1),
+    losses: recent.length - wins,
+    winRate: ((wins / recent.length) * 100).toFixed(1),
     charUsage,
-    currentRank: isP1Latest ? latest.p1_dan_rank : latest.p2_dan_rank,
-    tekkenPower: isP1Latest ? latest.p1_tekken_power : latest.p2_tekken_power,
-    region: isP1Latest ? latest.p1_region : latest.p2_region,
+    charRatings,
+    currentRank: RANK_ID[currentRankId] ?? `Rank#${currentRankId}`,
+    highestRank: highestRankName,
+    region: isP1Latest ? latest.p1_region_id : latest.p2_region_id,
+    power: isP1Latest ? latest.p1_power : latest.p2_power,
   };
+}
+
+function regionName(id) {
+  const regions = { 0: 'Asia', 1: 'Americas', 2: 'Middle East', 3: 'South America', 4: 'Europe' };
+  return regions[id] ?? 'Unknown';
 }
 
 function buildBar(pct) {
@@ -120,24 +198,28 @@ function buildBar(pct) {
   return '`' + '█'.repeat(filled) + '░'.repeat(10 - filled) + '`' + ` ${pct}%`;
 }
 
-function buildEmbed(stats, tekkenId) {
-  const charLines = stats.charUsage
-    .map(([char, count]) => {
-      const pct = ((count / stats.gamesAnalysed) * 100).toFixed(0);
-      return '`' + char.padEnd(16) + '`' + ` ${count}g  (${pct}%)`;
-    }).join('\n');
+function buildEmbed(stats, polarisId) {
+  const charLines = stats.charUsage.map(([char, count]) => {
+    const pct = ((count / stats.gamesAnalysed) * 100).toFixed(0);
+    const rating = stats.charRatings[char];
+    const ratingStr = rating
+      ? ` • μ${rating.rating} (${rating.ratingChange >= 0 ? '+' : ''}${rating.ratingChange})`
+      : '';
+    return '`' + char.padEnd(14) + '`' + ` ${count}g (${pct}%)${ratingStr}`;
+  }).join('\n');
 
   return new EmbedBuilder()
     .setColor(RANK_COLORS[stats.currentRank] ?? 0x5865F2)
     .setTitle(`🎮 ${stats.name}`)
-    .setURL(`https://ewgf.gg/${tekkenId}`)
-    .setDescription(`**Tekken ID:** \`${tekkenId}\``)
+    .setURL(`https://wank.wavu.wiki/player/${polarisId}`)
+    .setDescription(`**Polaris ID:** \`${polarisId}\`  •  **Region:** ${regionName(stats.region)}`)
     .addFields(
       {
         name: '📊 Current Standing',
         value: [
           `**Rank:** ${stats.currentRank}`,
-          `**Tekken Power:** ${stats.tekkenPower.toLocaleString()}`,
+          `**Peak (last ${stats.gamesAnalysed}g):** ${stats.highestRank}`,
+          `**Tekken Power:** ${stats.power?.toLocaleString() ?? 'N/A'}`,
         ].join('\n'),
         inline: true,
       },
@@ -151,23 +233,14 @@ function buildEmbed(stats, tekkenId) {
         inline: true,
       },
       { name: '\u200B', value: '\u200B', inline: false },
-      { name: '🕹️ Character Usage', value: charLines || 'No data', inline: false },
+      {
+        name: '🕹️ Character Usage & Glicko2 Rating',
+        value: charLines || 'No data',
+        inline: false,
+      },
     )
-    .setFooter({ text: `Region: ${stats.region ?? 'Unknown'}  •  Data from ewgf.gg` })
+    .setFooter({ text: 'Data from wank.wavu.wiki  •  Ratings may be delayed' })
     .setTimestamp();
-}
-
-async function lookupPlayer(tekkenId) {
-  const battlesRes = await apiGet(`/external/battles/${tekkenId}`);
-  const stats = analyseGames(battlesRes.data, tekkenId);
-  return stats;
-}
-
-function errorMessage(err, tekkenId) {
-  if (err.status === 404) return `❌ Player \`${tekkenId}\` not found. Double-check the Tekken ID on ewgf.gg.`;
-  if (err.status === 401) return '❌ Invalid API key — check your EWGF_API_KEY.';
-  if (err.status === 429) return '⏳ Rate limit hit. Try again in a moment.';
-  return '❌ Something went wrong. Check the logs.';
 }
 
 // ─── Discord client ───────────────────────────────────────────────────────────
@@ -179,19 +252,20 @@ client.on('interactionCreate', async (interaction) => {
 
   // /register
   if (interaction.commandName === 'register') {
-    const tekkenId = interaction.options.getString('id');
+    const polarisId = interaction.options.getString('id');
     await interaction.deferReply({ flags: 64 });
     try {
-      const stats = await lookupPlayer(tekkenId);
-      if (!stats) return interaction.editReply('⚠️ No battle data found for this player.');
-
+      const { playerBattles, playerName } = await fetchPlayerReplays(polarisId);
+      if (playerBattles.length === 0) {
+        return interaction.editReply(`⚠️ No recent battles found for \`${polarisId}\`. Make sure the ID is correct and the player has played recently.`);
+      }
       const registry = loadRegistry();
-      registry[interaction.user.id] = { tekkenId, name: stats.name, discordName: interaction.user.username };
+      registry[interaction.user.id] = { polarisId, name: playerName, discordName: interaction.user.username };
       saveRegistry(registry);
-      await interaction.editReply(`✅ Registered! You are linked to **${stats.name}** (\`${tekkenId}\`).`);
+      await interaction.editReply(`✅ Registered! You are linked to **${playerName}** (\`${polarisId}\`).`);
     } catch (err) {
       console.error(err);
-      await interaction.editReply(errorMessage(err, tekkenId));
+      await interaction.editReply('❌ Something went wrong. Check the logs.');
     }
   }
 
@@ -211,32 +285,35 @@ client.on('interactionCreate', async (interaction) => {
   if (interaction.commandName === 'tekken') {
     const rawId   = interaction.options.getString('id');
     const mention = interaction.options.getUser('player');
-    let tekkenId  = rawId;
+    let polarisId = rawId;
 
     if (mention) {
       const registry = loadRegistry();
       const entry = registry[mention.id];
       if (!entry) {
         return interaction.reply({
-          content: `⚠️ ${mention.username} has not registered a Tekken ID yet. They can use \`/register\` to link one.`,
+          content: `⚠️ ${mention.username} has not registered yet. They can use \`/register\` to link their Tekken ID.`,
           flags: 64,
         });
       }
-      tekkenId = entry.tekkenId;
+      polarisId = entry.polarisId;
     }
 
-    if (!tekkenId) {
-      return interaction.reply({ content: '⚠️ Please provide a Tekken ID or mention a registered player.', flags: 64 });
+    if (!polarisId) {
+      return interaction.reply({ content: '⚠️ Please provide a Polaris ID or mention a registered player.', flags: 64 });
     }
 
     await interaction.deferReply();
     try {
-      const stats = await lookupPlayer(tekkenId);
-      if (!stats) return interaction.editReply('⚠️ No battle data found for this player.');
-      await interaction.editReply({ embeds: [buildEmbed(stats, tekkenId)] });
+      const { playerBattles } = await fetchPlayerReplays(polarisId);
+      if (playerBattles.length === 0) {
+        return interaction.editReply(`⚠️ No recent battles found for \`${polarisId}\`. The player may not have played recently (data covers ~last 5 hours).`);
+      }
+      const stats = analyseBattles(playerBattles, polarisId);
+      await interaction.editReply({ embeds: [buildEmbed(stats, polarisId)] });
     } catch (err) {
       console.error(err);
-      await interaction.editReply(errorMessage(err, tekkenId));
+      await interaction.editReply('❌ Something went wrong. Check the logs.');
     }
   }
 
@@ -244,28 +321,32 @@ client.on('interactionCreate', async (interaction) => {
   if (interaction.commandName === 'roster') {
     const registry = loadRegistry();
     const entries  = Object.values(registry);
-
     if (entries.length === 0) {
       return interaction.reply('⚠️ No players registered yet. Use `/register` to add yourself!');
     }
 
     await interaction.deferReply();
-    const results = await Promise.allSettled(entries.map((e) => lookupPlayer(e.tekkenId)));
+    const results = await Promise.allSettled(
+      entries.map((e) => fetchPlayerReplays(e.polarisId))
+    );
 
     const lines = results.map((result, i) => {
       const entry = entries[i];
       if (result.status === 'rejected') return `❌ **${entry.name}** — failed to fetch`;
-      const stats = result.value;
-      if (!stats) return `⚠️ **${entry.name}** — no battle data`;
+      const { playerBattles } = result.value;
+      if (playerBattles.length === 0) return `⚠️ **${entry.name}** — no recent battles`;
+      const stats = analyseBattles(playerBattles, entry.polarisId);
       const mainChar = stats.charUsage[0]?.[0] ?? '?';
-      return `**${stats.name}** • ${stats.currentRank} • ${mainChar} • ${stats.winRate}% WR (${stats.wins}W-${stats.losses}L last ${stats.gamesAnalysed})`;
+      const rating = stats.charRatings[mainChar];
+      const ratingStr = rating ? ` • μ${rating.rating}` : '';
+      return `**${stats.name}** • ${stats.currentRank} • ${mainChar}${ratingStr} • ${stats.winRate}% WR (${stats.wins}W-${stats.losses}L)`;
     });
 
     const embed = new EmbedBuilder()
       .setColor(0x5865F2)
       .setTitle('🏆 Tekken Austria Roster')
       .setDescription(lines.join('\n'))
-      .setFooter({ text: `${entries.length} registered player(s)  •  Data from ewgf.gg` })
+      .setFooter({ text: `${entries.length} registered player(s)  •  Data from wank.wavu.wiki` })
       .setTimestamp();
 
     await interaction.editReply({ embeds: [embed] });
@@ -274,16 +355,16 @@ client.on('interactionCreate', async (interaction) => {
 
 // ─── Register slash commands then start ──────────────────────────────────────
 async function main() {
-  if (!DISCORD_TOKEN || !CLIENT_ID || !EWGF_API_KEY) {
-    console.error('❌ Missing env vars: DISCORD_TOKEN, DISCORD_CLIENT_ID, EWGF_API_KEY');
+  if (!DISCORD_TOKEN || !CLIENT_ID) {
+    console.error('❌ Missing env vars: DISCORD_TOKEN, DISCORD_CLIENT_ID');
     process.exit(1);
   }
 
   const commands = [
     new SlashCommandBuilder()
       .setName('register')
-      .setDescription('Link your Discord account to your Tekken ID')
-      .addStringOption((opt) => opt.setName('id').setDescription('Your Tekken ID (find it on ewgf.gg)').setRequired(true)),
+      .setDescription('Link your Discord account to your Tekken Polaris ID')
+      .addStringOption((opt) => opt.setName('id').setDescription('Your Polaris ID from wank.wavu.wiki (e.g. 5Y6b4b9H278n)').setRequired(true)),
 
     new SlashCommandBuilder()
       .setName('unregister')
@@ -292,7 +373,7 @@ async function main() {
     new SlashCommandBuilder()
       .setName('tekken')
       .setDescription('Look up a Tekken 8 player\'s stats')
-      .addStringOption((opt) => opt.setName('id').setDescription('Tekken ID (find it on ewgf.gg)').setRequired(false))
+      .addStringOption((opt) => opt.setName('id').setDescription('Polaris ID from wank.wavu.wiki').setRequired(false))
       .addUserOption((opt) => opt.setName('player').setDescription('Mention a registered Discord user').setRequired(false)),
 
     new SlashCommandBuilder()
