@@ -103,7 +103,7 @@ function httpGet(hostname, urlPath) {
 
 // ─── Fetch replays for a polaris ID ──────────────────────────────────────────
 // Scans up to MAX_BATCHES batches of replays to find the player
-const MAX_BATCHES = 5; // covers ~1 hour of recent games
+const MAX_BATCHES = 50; // covers ~1 hour of recent games
 
 async function fetchPlayerReplays(polarisId) {
   let before = Math.floor(Date.now() / 1000);
