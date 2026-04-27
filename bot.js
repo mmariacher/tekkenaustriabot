@@ -67,15 +67,20 @@ function apiGet(path) {
 
         decompress(buf)
           .then((data) => {
+            const raw = data.toString('utf8');
             try {
-              const json = JSON.parse(data.toString());
+              const json = JSON.parse(raw);
               if (res.statusCode === 200) resolve(json);
               else reject({ status: res.statusCode, body: json });
             } catch (e) {
-              reject(new Error('Failed to parse JSON'));
+              console.error('Failed to parse JSON (status ' + res.statusCode + '):', raw.slice(0, 500));
+              reject(new Error('Failed to parse JSON (status ' + res.statusCode + ')'));
             }
           })
-          .catch(reject);
+          .catch((e) => {
+            console.error('Decompression error:', e.message);
+            reject(e);
+          });
       });
     });
 
