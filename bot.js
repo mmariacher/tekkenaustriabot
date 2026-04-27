@@ -1,46 +1,47 @@
 const { Client, GatewayIntentBits, EmbedBuilder, SlashCommandBuilder, REST, Routes } = require('discord.js');
 const zlib = require('zlib');
 const https = require('https');
+const http = require('http');
 const fs = require('fs');
 const path = require('path');
 
 // ─── Dummy web server to keep Railway happy ───────────────────────────────────
-const http = require('http');
 http.createServer((req, res) => res.end('OK')).listen(process.env.PORT || 3000);
 
 // ─── Config ───────────────────────────────────────────────────────────────────
 const DISCORD_TOKEN  = process.env.DISCORD_TOKEN;
 const CLIENT_ID      = process.env.DISCORD_CLIENT_ID;
-const BASE_URL       = 'wank.wavu.wiki';
+const EWGF_API_KEY   = process.env.EWGF_API_KEY;
+const EWGF_HOST      = 'api.ewgf.gg';
+const WAVU_HOST      = 'wank.wavu.wiki';
 const REGISTRY_FILE  = path.join('/app', 'registry.json');
 
-// ─── Character ID map (from wank.wavu.wiki replay data) ──────────────────────
+// ─── Character ID map ─────────────────────────────────────────────────────────
 const CHARA_ID = {
   0:  'Jin',        1:  'Kazuya',     2:  'Paul',       3:  'Law',
   4:  'Jack-8',     5:  'King',       6:  'Jun',        7:  'Reina',
   8:  'Lars',       9:  'Xiaoyu',     10: 'Hwoarang',   11: 'Yoshimitsu',
   12: 'Leroy',      13: 'Asuka',      14: 'Lili',       15: 'Nina',
   16: 'Lee',        17: 'Kuma',       18: 'Panda',      19: 'Feng',
-  20: 'Leo',        21: 'Steve',      22: 'Bryan',       23: 'Dragunov',
-  24: 'Raven',      25: 'Shaheen',    26: 'Claudio',    27: 'Alisa',
-  28: 'Zafina',     29: 'Victor',     30: 'Devil Jin',  31: 'Azucena',
-  32: 'Lidia',      33: 'Armor King', 34: 'Miary Zo',   35: 'Anna',
-  36: 'Eddy',       37: 'Heihachi',   38: 'Clive',      39: 'Fahkumram',
-  40: 'Reina',      41: 'Lars',       42: 'Xiaoyu',     43: 'Yoshimitsu',
+  20: 'Leo',        21: 'Steve',      22: 'Bryan',      23: 'Dragunov',
+  24: 'Raven',      25: 'Shaheen',   26: 'Claudio',    27: 'Alisa',
+  28: 'Zafina',     29: 'Victor',    30: 'Devil Jin',  31: 'Azucena',
+  32: 'Lidia',      33: 'Armor King', 34: 'Miary Zo',  35: 'Anna',
+  36: 'Eddy',       37: 'Heihachi',  38: 'Clive',      39: 'Fahkumram',
+  40: 'Reina',      41: 'Lars',      42: 'Xiaoyu',     43: 'Yoshimitsu',
   44: 'Leroy',      45: 'Steve',
 };
 
-// ─── Rank ID map ──────────────────────────────────────────────────────────────
-const RANK_ID = {
-  0:  'Beginner',      1:  'Fighter',       2:  'Strategist',    3:  'Combatant',
-  4:  'Brawler',       5:  'Ranger',        6:  'Cavalry',       7:  'Warrior',
-  8:  'Assailant',     9:  'Dominator',     10: 'Vindicator',    11: 'Juggernaut',
-  12: 'Usurper',       13: 'Vanquisher',    14: 'Destroyer',     15: 'Eliminator',
-  16: 'Garyu',         17: 'Shinryu',       18: 'Tenryu',        19: 'Mighty Ruler',
-  20: 'Flame Ruler',   21: 'Battle Ruler',  22: 'Fujin',         23: 'Raijin',
-  24: 'Kishin',        25: 'Bushin',        26: 'Tekken King',   27: 'Tekken Emperor',
-  28: 'Tekken God',    29: 'Tekken God Supreme', 30: 'God of Destruction', 31: 'Tekken God Supreme', 32: 'God of Destruction',
-};
+// ─── Rank maps ────────────────────────────────────────────────────────────────
+const RANK_NAMES = [
+  'Beginner', 'Fighter', 'Strategist', 'Combatant', 'Brawler',
+  'Ranger', 'Cavalry', 'Warrior', 'Assailant', 'Dominator',
+  'Vindicator', 'Juggernaut', 'Usurper', 'Vanquisher', 'Destroyer',
+  'Eliminator', 'Garyu', 'Shinryu', 'Tenryu', 'Mighty Ruler',
+  'Flame Ruler', 'Battle Ruler', 'Fujin', 'Raijin', 'Kishin',
+  'Bushin', 'Tekken King', 'Tekken Emperor', 'Tekken God',
+  'Tekken God Supreme', 'God of Destruction',
+];
 
 const RANK_COLORS = {
   'Beginner': 0x808080, 'Fighter': 0xCD7F32, 'Strategist': 0xCD7F32,
@@ -70,13 +71,13 @@ function saveRegistry(registry) {
 }
 
 // ─── HTTP helper ──────────────────────────────────────────────────────────────
-function httpGet(hostname, urlPath) {
+function httpGet(hostname, urlPath, headers = {}) {
   return new Promise((resolve, reject) => {
     const options = {
       hostname,
       path: urlPath,
       method: 'GET',
-      headers: { 'Accept-Encoding': 'gzip', 'User-Agent': 'TekkenAustriaBot/1.0' },
+      headers: { 'Accept-Encoding': 'gzip', 'User-Agent': 'TekkenAustriaBot/1.0', ...headers },
     };
 
     const req = https.request(options, (res) => {
@@ -91,7 +92,8 @@ function httpGet(hostname, urlPath) {
         decompress(buf).then((data) => {
           const raw = data.toString('utf8');
           try {
-            resolve({ status: res.statusCode, json: JSON.parse(raw) });
+            const json = JSON.parse(raw);
+            resolve({ status: res.statusCode, json });
           } catch (e) {
             console.error('Failed to parse JSON:', raw.slice(0, 300));
             reject(new Error('Failed to parse JSON'));
@@ -105,77 +107,75 @@ function httpGet(hostname, urlPath) {
   });
 }
 
-// ─── Fetch replays for a polaris ID ──────────────────────────────────────────
-// Scans up to MAX_BATCHES batches of replays to find the player
-const MAX_BATCHES = 100; // covers ~1 hour of recent games
+// ─── ewgf.gg: fetch last 50 battles ──────────────────────────────────────────
+async function fetchEwgfBattles(polarisId) {
+  const res = await httpGet(EWGF_HOST, `/external/battles/${polarisId}`, {
+    'Authorization': `Bearer ${EWGF_API_KEY}`,
+  });
+  if (res.status !== 200) throw { status: res.status };
+  return res.json.data;
+}
 
-async function fetchPlayerReplays(polarisId) {
+// ─── wavu: fetch glicko2 ratings by scanning recent replays ──────────────────
+const WAVU_BATCHES = 20; // ~4 hours, just for ratings
+
+async function fetchWavuRatings(polarisId) {
   let before = Math.floor(Date.now() / 1000);
-  let playerBattles = [];
-  let playerName = null;
+  const charRatings = {};
 
-  for (let i = 0; i < MAX_BATCHES; i++) {
-    const { json } = await httpGet(BASE_URL, `/api/replays?before=${before}`);
+  for (let i = 0; i < WAVU_BATCHES; i++) {
+    const { json } = await httpGet(WAVU_HOST, `/api/replays?before=${before}`);
     if (!Array.isArray(json) || json.length === 0) break;
 
     for (const b of json) {
       const isP1 = b.p1_polaris_id === polarisId;
       const isP2 = b.p2_polaris_id === polarisId;
       if (isP1 || isP2) {
-        playerBattles.push(b);
-        if (!playerName) playerName = isP1 ? b.p1_name : b.p2_name;
+        const charaId = isP1 ? b.p1_chara_id : b.p2_chara_id;
+        const charName = CHARA_ID[charaId] ?? `Char#${charaId}`;
+        const rating = isP1 ? b.p1_rating_before : b.p2_rating_before;
+        const ratingChange = isP1 ? b.p1_rating_change : b.p2_rating_change;
+
+        // Only store the most recent rating per character
+        if (rating !== null && !charRatings[charName]) {
+          charRatings[charName] = { rating, ratingChange };
+        }
       }
     }
 
-    // Move before back by 700 seconds for next batch
     before = json[json.length - 1].battle_at - 1;
 
-    // Stop early if we have enough games
-    if (playerBattles.length >= 50) break;
+    // Stop early if we found ratings for all chars
+    if (Object.keys(charRatings).length > 0 && i > 2) break;
   }
 
-  return { playerBattles, playerName };
+  return charRatings;
 }
 
-// ─── Analyse battles ──────────────────────────────────────────────────────────
+// ─── Analyse ewgf battles ─────────────────────────────────────────────────────
 function analyseBattles(battles, polarisId) {
   if (!battles || battles.length === 0) return null;
 
   const recent = battles.slice(0, 50);
   let wins = 0;
   const charCounts = {};
-  const charRatings = {}; // track glicko2 per char
-  let highestRank = -1;
-  let highestRankName = null;
+  let highestRankIdx = -1;
 
   for (const b of recent) {
-    const isP1 = b.p1_polaris_id === polarisId;
-    const won = isP1 ? b.winner === 1 : b.winner === 2;
-    if (won) wins++;
+    const isP1 = b.p1_tekken_id === polarisId;
+    if (isP1 ? b.winner === 1 : b.winner === 2) wins++;
 
-    const charaId = isP1 ? b.p1_chara_id : b.p2_chara_id;
-    const charName = CHARA_ID[charaId] ?? `Char#${charaId}`;
-    const rankId = isP1 ? b.p1_rank : b.p2_rank;
-    const rating = isP1 ? b.p1_rating_before : b.p2_rating_before;
-    const ratingChange = isP1 ? b.p1_rating_change : b.p2_rating_change;
+    const char = isP1 ? b.p1_char : b.p2_char;
+    charCounts[char] = (charCounts[char] || 0) + 1;
 
-    charCounts[charName] = (charCounts[charName] || 0) + 1;
-
-    // Track latest rating per character
-    if (rating !== null && !charRatings[charName]) {
-      charRatings[charName] = { rating, ratingChange };
-    }
-
-    if (rankId > highestRank) {
-      highestRank = rankId;
-      highestRankName = RANK_ID[rankId] ?? `Rank#${rankId}`;
-    }
+    const rank = isP1 ? b.p1_dan_rank : b.p2_dan_rank;
+    const rankIdx = RANK_NAMES.indexOf(rank);
+    if (rankIdx > highestRankIdx) highestRankIdx = rankIdx;
   }
 
   const charUsage = Object.entries(charCounts).sort((a, b) => b[1] - a[1]);
   const latest = recent[0];
-  const isP1Latest = latest.p1_polaris_id === polarisId;
-  const currentRankId = isP1Latest ? latest.p1_rank : latest.p2_rank;
+  const isP1Latest = latest.p1_tekken_id === polarisId;
 
   return {
     name: isP1Latest ? latest.p1_name : latest.p2_name,
@@ -184,17 +184,11 @@ function analyseBattles(battles, polarisId) {
     losses: recent.length - wins,
     winRate: ((wins / recent.length) * 100).toFixed(1),
     charUsage,
-    charRatings,
-    currentRank: RANK_ID[currentRankId] ?? `Rank#${currentRankId}`,
-    highestRank: highestRankName,
-    region: isP1Latest ? latest.p1_region_id : latest.p2_region_id,
-    power: isP1Latest ? latest.p1_power : latest.p2_power,
+    currentRank: isP1Latest ? latest.p1_dan_rank : latest.p2_dan_rank,
+    highestRank: RANK_NAMES[highestRankIdx] ?? 'Unknown',
+    tekkenPower: isP1Latest ? latest.p1_tekken_power : latest.p2_tekken_power,
+    region: isP1Latest ? latest.p1_region : latest.p2_region,
   };
-}
-
-function regionName(id) {
-  const regions = { 0: 'Asia', 1: 'Americas', 2: 'Middle East', 3: 'South America', 4: 'Europe' };
-  return regions[id] ?? 'Unknown';
 }
 
 function buildBar(pct) {
@@ -202,10 +196,10 @@ function buildBar(pct) {
   return '`' + '█'.repeat(filled) + '░'.repeat(10 - filled) + '`' + ` ${pct}%`;
 }
 
-function buildEmbed(stats, polarisId) {
+function buildEmbed(stats, charRatings, polarisId) {
   const charLines = stats.charUsage.map(([char, count]) => {
     const pct = ((count / stats.gamesAnalysed) * 100).toFixed(0);
-    const rating = stats.charRatings[char];
+    const rating = charRatings[char];
     const ratingStr = rating
       ? ` • μ${rating.rating} (${rating.ratingChange >= 0 ? '+' : ''}${rating.ratingChange})`
       : '';
@@ -216,14 +210,14 @@ function buildEmbed(stats, polarisId) {
     .setColor(RANK_COLORS[stats.currentRank] ?? 0x5865F2)
     .setTitle(`🎮 ${stats.name}`)
     .setURL(`https://wank.wavu.wiki/player/${polarisId}`)
-    .setDescription(`**Polaris ID:** \`${polarisId}\`  •  **Region:** ${regionName(stats.region)}`)
+    .setDescription(`**ID:** \`${polarisId}\`  •  **Region:** ${stats.region ?? 'Unknown'}`)
     .addFields(
       {
         name: '📊 Current Standing',
         value: [
           `**Rank:** ${stats.currentRank}`,
           `**Peak (last ${stats.gamesAnalysed}g):** ${stats.highestRank}`,
-          `**Tekken Power:** ${stats.power?.toLocaleString() ?? 'N/A'}`,
+          `**Tekken Power:** ${stats.tekkenPower?.toLocaleString() ?? 'N/A'}`,
         ].join('\n'),
         inline: true,
       },
@@ -243,8 +237,15 @@ function buildEmbed(stats, polarisId) {
         inline: false,
       },
     )
-    .setFooter({ text: 'Data from wank.wavu.wiki  •  Ratings may be delayed' })
+    .setFooter({ text: 'Battles: ewgf.gg  •  Ratings: wank.wavu.wiki' })
     .setTimestamp();
+}
+
+function ewgfErrorMessage(err, polarisId) {
+  if (err.status === 404) return `❌ Player \`${polarisId}\` not found on ewgf.gg.`;
+  if (err.status === 401) return '❌ Invalid EWGF API key.';
+  if (err.status === 429) return '⏳ Rate limit hit. Try again in a moment.';
+  return '❌ Something went wrong fetching battle data.';
 }
 
 // ─── Discord client ───────────────────────────────────────────────────────────
@@ -259,17 +260,17 @@ client.on('interactionCreate', async (interaction) => {
     const polarisId = interaction.options.getString('id');
     await interaction.deferReply({ flags: 64 });
     try {
-      const { playerBattles, playerName } = await fetchPlayerReplays(polarisId);
-      if (playerBattles.length === 0) {
-        return interaction.editReply(`⚠️ No recent battles found for \`${polarisId}\`. Make sure the ID is correct and the player has played recently.`);
-      }
+      const battles = await fetchEwgfBattles(polarisId);
+      const stats = analyseBattles(battles, polarisId);
+      if (!stats) return interaction.editReply('⚠️ No battle data found. Check the ID and try again.');
+
       const registry = loadRegistry();
-      registry[interaction.user.id] = { polarisId, name: playerName, discordName: interaction.user.username };
+      registry[interaction.user.id] = { polarisId, name: stats.name, discordName: interaction.user.username };
       saveRegistry(registry);
-      await interaction.editReply(`✅ Registered! You are linked to **${playerName}** (\`${polarisId}\`).`);
+      await interaction.editReply(`✅ Registered! You are linked to **${stats.name}** (\`${polarisId}\`).`);
     } catch (err) {
       console.error(err);
-      await interaction.editReply('❌ Something went wrong. Check the logs.');
+      await interaction.editReply(ewgfErrorMessage(err, polarisId));
     }
   }
 
@@ -296,7 +297,7 @@ client.on('interactionCreate', async (interaction) => {
       const entry = registry[mention.id];
       if (!entry) {
         return interaction.reply({
-          content: `⚠️ ${mention.username} has not registered yet. They can use \`/register\` to link their Tekken ID.`,
+          content: `⚠️ ${mention.username} has not registered yet. They can use \`/register\` to link their ID.`,
           flags: 64,
         });
       }
@@ -304,20 +305,23 @@ client.on('interactionCreate', async (interaction) => {
     }
 
     if (!polarisId) {
-      return interaction.reply({ content: '⚠️ Please provide a Polaris ID or mention a registered player.', flags: 64 });
+      return interaction.reply({ content: '⚠️ Please provide an ID or mention a registered player.', flags: 64 });
     }
 
     await interaction.deferReply();
     try {
-      const { playerBattles } = await fetchPlayerReplays(polarisId);
-      if (playerBattles.length === 0) {
-        return interaction.editReply(`⚠️ No recent battles found for \`${polarisId}\`. The player may not have played recently (data covers ~last 5 hours).`);
-      }
-      const stats = analyseBattles(playerBattles, polarisId);
-      await interaction.editReply({ embeds: [buildEmbed(stats, polarisId)] });
+      // Fetch ewgf battles + wavu ratings in parallel
+      const [battles, charRatings] = await Promise.all([
+        fetchEwgfBattles(polarisId),
+        fetchWavuRatings(polarisId).catch(() => ({})), // ratings are optional
+      ]);
+
+      const stats = analyseBattles(battles, polarisId);
+      if (!stats) return interaction.editReply('⚠️ No battle data found for this player.');
+      await interaction.editReply({ embeds: [buildEmbed(stats, charRatings, polarisId)] });
     } catch (err) {
       console.error(err);
-      await interaction.editReply('❌ Something went wrong. Check the logs.');
+      await interaction.editReply(ewgfErrorMessage(err, polarisId));
     }
   }
 
@@ -331,17 +335,20 @@ client.on('interactionCreate', async (interaction) => {
 
     await interaction.deferReply();
     const results = await Promise.allSettled(
-      entries.map((e) => fetchPlayerReplays(e.polarisId))
+      entries.map((e) => Promise.all([
+        fetchEwgfBattles(e.polarisId),
+        fetchWavuRatings(e.polarisId).catch(() => ({})),
+      ]))
     );
 
     const lines = results.map((result, i) => {
       const entry = entries[i];
       if (result.status === 'rejected') return `❌ **${entry.name}** — failed to fetch`;
-      const { playerBattles } = result.value;
-      if (playerBattles.length === 0) return `⚠️ **${entry.name}** — no recent battles`;
-      const stats = analyseBattles(playerBattles, entry.polarisId);
+      const [battles, charRatings] = result.value;
+      const stats = analyseBattles(battles, entry.polarisId);
+      if (!stats) return `⚠️ **${entry.name}** — no battle data`;
       const mainChar = stats.charUsage[0]?.[0] ?? '?';
-      const rating = stats.charRatings[mainChar];
+      const rating = charRatings[mainChar];
       const ratingStr = rating ? ` • μ${rating.rating}` : '';
       return `**${stats.name}** • ${stats.currentRank} • ${mainChar}${ratingStr} • ${stats.winRate}% WR (${stats.wins}W-${stats.losses}L)`;
     });
@@ -350,7 +357,7 @@ client.on('interactionCreate', async (interaction) => {
       .setColor(0x5865F2)
       .setTitle('🏆 Tekken Austria Roster')
       .setDescription(lines.join('\n'))
-      .setFooter({ text: `${entries.length} registered player(s)  •  Data from wank.wavu.wiki` })
+      .setFooter({ text: `${entries.length} registered player(s)  •  ewgf.gg + wank.wavu.wiki` })
       .setTimestamp();
 
     await interaction.editReply({ embeds: [embed] });
@@ -367,8 +374,8 @@ async function main() {
   const commands = [
     new SlashCommandBuilder()
       .setName('register')
-      .setDescription('Link your Discord account to your Tekken Polaris ID')
-      .addStringOption((opt) => opt.setName('id').setDescription('Your Polaris ID from wank.wavu.wiki (e.g. 5Y6b4b9H278n)').setRequired(true)),
+      .setDescription('Link your Discord account to your Tekken ID')
+      .addStringOption((opt) => opt.setName('id').setDescription('Your Polaris ID (find it on wank.wavu.wiki or ewgf.gg)').setRequired(true)),
 
     new SlashCommandBuilder()
       .setName('unregister')
@@ -377,7 +384,7 @@ async function main() {
     new SlashCommandBuilder()
       .setName('tekken')
       .setDescription('Look up a Tekken 8 player\'s stats')
-      .addStringOption((opt) => opt.setName('id').setDescription('Polaris ID from wank.wavu.wiki').setRequired(false))
+      .addStringOption((opt) => opt.setName('id').setDescription('Polaris ID from wank.wavu.wiki or ewgf.gg').setRequired(false))
       .addUserOption((opt) => opt.setName('player').setDescription('Mention a registered Discord user').setRequired(false)),
 
     new SlashCommandBuilder()
