@@ -4,6 +4,10 @@ const https = require('https');
 const fs = require('fs');
 const path = require('path');
 
+// ─── Dummy web server to keep Railway happy ───────────────────────────────────
+const http = require('http');
+http.createServer((req, res) => res.end('OK')).listen(process.env.PORT || 3000);
+
 // ─── Config ───────────────────────────────────────────────────────────────────
 const DISCORD_TOKEN  = process.env.DISCORD_TOKEN;
 const CLIENT_ID      = process.env.DISCORD_CLIENT_ID;
