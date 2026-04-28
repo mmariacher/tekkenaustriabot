@@ -60,133 +60,8 @@ const CHAR_EMOJI = {
   'Zafina':      ':zafina:',
 };
 
-function charEmoji(name) {
-  return CHAR_EMOJI[name] ?? '';
-}
-
-// ─── Rank names ───────────────────────────────────────────────────────────────
-const RANK_NAMES = [
-  'Beginner', 'Fighter', 'Strategist', 'Combatant', 'Brawler',
-  'Ranger', 'Cavalry', 'Warrior', 'Assailant', 'Dominator',
-  'Vindicator', 'Juggernaut', 'Usurper', 'Vanquisher', 'Destroyer',
-  'Eliminator', 'Garyu', 'Shinryu', 'Tenryu', 'Mighty Ruler',
-  'Flame Ruler', 'Battle Ruler', 'Fujin', 'Raijin', 'Kishin',
-  'Bushin', 'Tekken King', 'Tekken Emperor', 'Tekken God',
-  'Tekken God Supreme', 'God of Destruction',
-];
-
-const RANK_COLORS = {
-  'Beginner': 0x808080, 'Fighter': 0xCD7F32, 'Strategist': 0xCD7F32,
-  'Combatant': 0xC0C0C0, 'Brawler': 0xC0C0C0, 'Ranger': 0xFFD700,
-  'Cavalry': 0xFFD700, 'Warrior': 0xFFD700, 'Assailant': 0x00BFFF,
-  'Dominator': 0x00BFFF, 'Vindicator': 0x9370DB, 'Juggernaut': 0x9370DB,
-  'Usurper': 0xFF4500, 'Vanquisher': 0xFF4500, 'Destroyer': 0xFF4500,
-  'Eliminator': 0xFF4500, 'Garyu': 0xFF0000, 'Shinryu': 0xFF0000,
-  'Tenryu': 0xFF0000, 'Mighty Ruler': 0xFF0000, 'Flame Ruler': 0xFF0000,
-  'Battle Ruler': 0xFF0000, 'Fujin': 0xFFFFFF, 'Raijin': 0xFFFFFF,
-  'Kishin': 0xFFFFFF, 'Bushin': 0xFFFFFF, 'Tekken King': 0xFFD700,
-  'Tekken Emperor': 0xFFD700, 'Tekken God': 0xFFD700,
-  'Tekken God Supreme': 0xFFD700, 'God of Destruction': 0xFF4500,
-};
-
-
-// ─── Character emoji map ──────────────────────────────────────────────────────
-const CHAR_EMOJI = {
-  'Alisa':       ':alisa:',
-  'Anna':        ':anna:',
-  'Armor King':  ':armor_king:',
-  'Asuka':       ':asuka:',
-  'Azucena':     ':azucena:',
-  'Bryan':       ':bryan:',
-  'Claudio':     ':claudio:',
-  'Clive':       ':clive:',
-  'Devil Jin':   ':devil_jin:',
-  'Dragunov':    ':dragunov:',
-  'Eddy':        ':eddy:',
-  'Fahkumram':   ':fahkumram:',
-  'Feng':        ':feng:',
-  'Heihachi':    ':heihachi:',
-  'Hwoarang':    ':hwoarang:',
-  'Jack-8':      ':jack8:',
-  'Jin':         ':jin:',
-  'Jun':         ':jun:',
-  'Kazuya':      ':kazuya:',
-  'King':        ':king:',
-  'Kuma':        ':kuma:',
-  'Lars':        ':lars:',
-  'Law':         ':law:',
-  'Lee':         ':lee:',
-  'Leo':         ':leo:',
-  'Leroy':       ':leroy:',
-  'Lidia':       ':lidia:',
-  'Lili':        ':lili:',
-  'Miary Zo':    ':miary_zo:',
-  'Nina':        ':nina:',
-  'Panda':       ':panda:',
-  'Paul':        ':paul:',
-  'Raven':       ':raven:',
-  'Reina':       ':reina:',
-  'Shaheen':     ':shaheen:',
-  'Steve':       ':steve:',
-  'Victor':      ':victor:',
-  'Xiaoyu':      ':xiaoyu:',
-  'Yoshimitsu':  ':yoshimitsu:',
-  'Zafina':      ':zafina:',
-};
-
-function charEmoji(name) {
-  return CHAR_EMOJI[name] ?? '';
-}
-
-
-// ─── Character emoji map ──────────────────────────────────────────────────────
-const CHAR_EMOJI = {
-  'Alisa':       'alisa',
-  'Anna':        'anna',
-  'Armor King':  'armor_king',
-  'Asuka':       'asuka',
-  'Azucena':     'azucena',
-  'Bryan':       'bryan',
-  'Claudio':     'claudio',
-  'Clive':       'clive',
-  'Devil Jin':   'devil_jin',
-  'Dragunov':    'dragunov',
-  'Eddy':        'eddy',
-  'Fahkumram':   'fahkumram',
-  'Feng':        'feng',
-  'Heihachi':    'heihachi',
-  'Hwoarang':    'hwoarang',
-  'Jack-8':      'jack8',
-  'Jin':         'jin',
-  'Jun':         'jun',
-  'Kazuya':      'kazuya',
-  'King':        'king',
-  'Kuma':        'kuma',
-  'Lars':        'lars',
-  'Law':         'law',
-  'Lee':         'lee',
-  'Leo':         'leo',
-  'Leroy':       'leroy',
-  'Lidia':       'lidia',
-  'Lili':        'lili',
-  'Miary Zo':    'miary_zo',
-  'Nina':        'nina',
-  'Panda':       'panda',
-  'Paul':        'paul',
-  'Raven':       'raven',
-  'Reina':       'reina',
-  'Shaheen':     'shaheen',
-  'Steve':       'steve',
-  'Victor':      'victor',
-  'Xiaoyu':      'xiaoyu',
-  'Yoshimitsu':  'yoshimitsu',
-  'Zafina':      'zafina',
-};
-
-function charEmoji(char, guildId) {
-  const name = CHAR_EMOJI[char];
-  if (!name || !guildId) return '';
-  return `:${name}:`;
+function charEmoji(char) {
+  return CHAR_EMOJI[char] ?? '';
 }
 
 // ─── Player Registry ──────────────────────────────────────────────────────────
@@ -357,7 +232,7 @@ function buildProfileEmbed(profile, polarisId, guildId) {
     const sigmaStr = r.sigma2 != null ? ` σ²${r.sigma2}` : '';
     const gamesStr = r.games != null ? ` • ${r.games.toLocaleString()}g` : '';
     const dateStr  = r.lastSeen ? ` • ${r.lastSeen}` : '';
-    return `${charEmoji(r.char, guildId)} \`${r.char.padEnd(14)}\` ${muStr}${sigmaStr}${gamesStr}${dateStr}`;
+    return `${charEmoji(r.char)} \`${r.char.padEnd(14)}\` ${muStr}${sigmaStr}${gamesStr}${dateStr}`;
   }).join('\n');
 
   return new EmbedBuilder()
@@ -645,7 +520,7 @@ client.on('interactionCreate', async (interaction) => {
     const lines = scored.map((p, i) => {
       const pos = medals[i] ?? `**${i + 1}.**`;
       const highlight = i === highlightIdx ? ' 👈' : '';
-      return `${pos} ${p.name} • ${charEmoji(p.char, interaction.guildId)} ${p.char} • μ${p.mu} σ²${p.sigma2}${highlight}`;
+      return `${pos} ${p.name} • ${charEmoji(p.char)} ${p.char} • μ${p.mu} σ²${p.sigma2}${highlight}`;
     });
 
     // If mentioned player not found in scored
@@ -684,7 +559,7 @@ client.on('interactionCreate', async (interaction) => {
       if (result.status === 'rejected') return `❌ **${entry.name}** — failed to fetch`;
       const profile = result.value;
       const top = profile.ratings[0];
-      const ratingStr = top ? ` • ${charEmoji(top.char, interaction.guildId)} ${top.char} μ${top.mu} σ²${top.sigma2}` : '';
+      const ratingStr = top ? ` • ${charEmoji(top.char)} ${top.char} μ${top.mu} σ²${top.sigma2}` : '';
       return `**${profile.name}**${ratingStr} • [profile](https://wank.wavu.wiki/player/${entry.polarisId})`;
     });
 
