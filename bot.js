@@ -98,7 +98,7 @@ const RANK_COLORS = {
 const JSONBIN_ID  = '69f0b04e856a682189814293';
 const JSONBIN_KEY = '$2a$10$lHckWhEScBLCx8XOuWNGZe4Tl9mnSyg/Wwplh8tCBChNg5rESLYQ2';
 
-async function await loadRegistry() {
+async function loadRegistry() {
   const { status, body } = await httpGet('api.jsonbin.io', `/v3/b/${JSONBIN_ID}/latest`, {
     'X-Master-Key': JSONBIN_KEY,
   });
