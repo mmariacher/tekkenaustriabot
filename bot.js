@@ -5,6 +5,14 @@ const http = require('http');
 const fs = require('fs');
 const path = require('path');
 
+// ─── Global error handlers to prevent crashes ────────────────────────────────
+process.on('unhandledRejection', (err) => {
+  console.error('Unhandled rejection:', err?.message ?? err);
+});
+process.on('uncaughtException', (err) => {
+  console.error('Uncaught exception:', err?.message ?? err);
+});
+
 // ─── Dummy web server to keep Railway happy ───────────────────────────────────
 http.createServer((req, res) => res.end('OK')).listen(process.env.PORT || 3000);
 
@@ -662,14 +670,13 @@ client.on('interactionCreate', async (interaction) => {
 
   if (interaction.commandName === 'glicko') {
     const mention = interaction.options.getUser('player');
+    await interaction.deferReply();
     const registry = await loadRegistry();
     const entries  = Object.values(registry);
 
     if (entries.length === 0) {
-      return interaction.reply('⚠️ No players registered yet. Use `/register` to add yourself!');
+      return interaction.editReply('⚠️ No players registered yet. Use `/register` to add yourself!');
     }
-
-    await interaction.deferReply();
 
     // Fetch all profiles in parallel
     const results = await Promise.allSettled(entries.map((e) => scrapeWavuProfile(e.polarisId)));
@@ -789,11 +796,10 @@ client.on('interactionCreate', async (interaction) => {
 
   // ── /roster ────────────────────────────────────────────────────────────────
   if (interaction.commandName === 'roster') {
+    await interaction.deferReply();
     const registry = await loadRegistry();
     const entries  = Object.values(registry);
-    if (entries.length === 0) return interaction.reply('⚠️ No players registered yet. Use `/register` to add yourself!');
-
-    await interaction.deferReply();
+    if (entries.length === 0) return interaction.editReply('⚠️ No players registered yet. Use `/register` to add yourself!');
     const results = await Promise.allSettled(entries.map((e) => scrapeWavuProfile(e.polarisId)));
 
     const lines = results.map((result, i) => {
