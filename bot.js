@@ -710,16 +710,24 @@ client.on('interactionCreate', async (interaction) => {
 
     // Build scored list
     const scored = [];
+    const unrated = [];
     for (let i = 0; i < results.length; i++) {
       const entry = entries[i];
-      if (results[i].status === 'rejected') continue;
+      if (results[i].status === 'rejected') {
+        console.error(`Failed to fetch wavu profile for ${entry.name} (${entry.polarisId}):`, results[i].reason?.message);
+        unrated.push(entry.name);
+        continue;
+      }
       const profile = results[i].value;
       // Find highest mu across all characters
       const best = profile.ratings.reduce((top, r) => (!top || r.mu > top.mu) ? r : top, null);
-      if (!best) continue;
+      if (!best) {
+        console.log(`No ratings found for ${entry.name} (${entry.polarisId})`);
+        unrated.push(profile.name || entry.name);
+        continue;
+      }
       scored.push({
         polarisId: entry.polarisId,
-        discordId: Object.keys(registry).find(k => registry[k].polarisId === entry.polarisId),
         name: profile.name,
         char: best.char,
         mu: best.mu,
@@ -747,6 +755,12 @@ client.on('interactionCreate', async (interaction) => {
       const highlight = i === highlightIdx ? ' 👈' : '';
       return `${pos} ${p.name} • ${charEmoji(p.char)} ${p.char} • μ${p.mu} σ²${p.sigma2}${highlight}`;
     });
+
+    // Add unrated players at bottom
+    if (unrated.length > 0) {
+      lines.push('');
+      lines.push(`*Keine Wertung: ${unrated.join(', ')}*`);
+    }
 
     // If mentioned player not found in scored
     if (mention && highlightIdx === -1) {
