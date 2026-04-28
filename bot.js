@@ -760,7 +760,7 @@ client.on('interactionCreate', async (interaction) => {
       }
     }
 
-    const chunkSize = 15;
+    const chunkSize = 8;
     const chunks = [];
     for (let i = 0; i < lines.length; i += chunkSize) {
       chunks.push(lines.slice(i, i + chunkSize));
