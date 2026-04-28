@@ -1,4 +1,4 @@
-const { Client, GatewayIntentBits, EmbedBuilder, SlashCommandBuilder, REST, Routes } = require('discord.js');
+const { Client, GatewayIntentBits, EmbedBuilder, SlashCommandBuilder, REST, Routes, ButtonBuilder, ButtonStyle, ActionRowBuilder, ComponentType } = require('discord.js');
 const zlib = require('zlib');
 const https = require('https');
 const http = require('http');
@@ -563,19 +563,65 @@ client.on('interactionCreate', async (interaction) => {
       for (let i = 0; i < lines.length; i += chunkSize) {
         chunks.push(lines.slice(i, i + chunkSize));
       }
+      const totalPages = chunks.length;
 
-      const embeds = chunks.map((chunk, i) =>
-        new EmbedBuilder()
+      function buildPage(page) {
+        const embed = new EmbedBuilder()
           .setColor(0xFFD700)
-          .setTitle(i === 0 ? '🇦🇹 Powerranking Austria' : '🇦🇹 Powerranking Austria (Fortsetzung)')
-          .setDescription(chunk.join('\n'))
-          .setFooter(i === chunks.length - 1 ? { text: `${players.length} Spieler • braacket.com/league/TekkenAustria` } : { text: '...' })
-      );
+          .setTitle('🇦🇹 Powerranking Austria')
+          .setDescription(chunks[page].join('\n'))
+          .setFooter({ text: `Seite ${page + 1}/${totalPages} • ${players.length} Spieler • braacket.com/league/TekkenAustria` });
 
-      await interaction.editReply({ embeds: [embeds[0]] });
-      for (let i = 1; i < embeds.length; i++) {
-        await interaction.followUp({ embeds: [embeds[i]] });
+        const row = new ActionRowBuilder().addComponents(
+          new ButtonBuilder()
+            .setCustomId('prev')
+            .setLabel('◀️ Zurück')
+            .setStyle(ButtonStyle.Secondary)
+            .setDisabled(page === 0),
+          new ButtonBuilder()
+            .setCustomId('next')
+            .setLabel('Weiter ▶️')
+            .setStyle(ButtonStyle.Secondary)
+            .setDisabled(page === totalPages - 1),
+        );
+
+        return { embeds: [embed], components: [row] };
       }
+
+      let currentPage = 0;
+
+      // If a player is highlighted, jump to their page
+      if (highlightName) {
+        const idx = lines.findIndex(l => l.includes('👈'));
+        if (idx >= 0) currentPage = Math.floor(idx / chunkSize);
+      }
+
+      const msg = await interaction.editReply(buildPage(currentPage));
+
+      // Button collector — 5 minutes timeout
+      const collector = msg.createMessageComponentCollector({
+        componentType: ComponentType.Button,
+        time: 5 * 60 * 1000,
+      });
+
+      collector.on('collect', async (btn) => {
+        if (btn.user.id !== interaction.user.id) {
+          return btn.reply({ content: '❌ Nur der Aufrufer kann blättern.', ephemeral: true });
+        }
+        if (btn.customId === 'prev' && currentPage > 0) currentPage--;
+        if (btn.customId === 'next' && currentPage < totalPages - 1) currentPage++;
+        await btn.update(buildPage(currentPage));
+      });
+
+      collector.on('end', () => {
+        // Disable buttons after timeout
+        const row = new ActionRowBuilder().addComponents(
+          new ButtonBuilder().setCustomId('prev').setLabel('◀️ Zurück').setStyle(ButtonStyle.Secondary).setDisabled(true),
+          new ButtonBuilder().setCustomId('next').setLabel('Weiter ▶️').setStyle(ButtonStyle.Secondary).setDisabled(true),
+        );
+        interaction.editReply({ components: [row] }).catch(() => {});
+      });
+
     } catch (err) {
       console.error('powerrankingat error:', err);
       await interaction.editReply('❌ Fehler beim Laden des Rankings.');
