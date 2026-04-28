@@ -104,7 +104,7 @@ const RANK_COLORS = {
 
 // ─── Player Registry via Supabase ────────────────────────────────────────────
 const SUPABASE_URL = 'https://tpfmddydiculltvwkkqk.supabase.co';
-const SUPABASE_KEY = 'sb_publishable_wunSSHloVqnuvHHQ6uucwg_IYEoFTlN';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRwZm1kZHlkaWN1bGx0dndra3FrIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3NzM3NzIxNiwiZXhwIjoyMDkyOTUzMjE2fQ.yZ7jVmACx4YP3P71d1ydqmIYnYyqwLlSMdaWCxnZVvo';
 
 async function supabaseRequest(method, path, body = null) {
   return new Promise((resolve, reject) => {
@@ -151,28 +151,39 @@ async function loadRegistry() {
   return registry;
 }
 
+// Upsert a single player
+async function upsertPlayer(discordId, entry) {
+  const { status, data } = await supabaseRequest('POST', '/rest/v1/registry?on_conflict=discord_id', {
+    discord_id: discordId,
+    polaris_id: entry.polarisId,
+    name: entry.name,
+    discord_name: entry.discordName,
+  });
+  if (status !== 200 && status !== 201) console.error('Supabase upsert failed:', status, data);
+}
+
+// Delete a single player
+async function deletePlayer(discordId) {
+  const { status, data } = await supabaseRequest('DELETE', `/rest/v1/registry?discord_id=eq.${discordId}`);
+  if (status !== 200 && status !== 204) console.error('Supabase delete failed:', status, data);
+}
+
 async function updateRegistry(fn) {
   const registry = await loadRegistry();
-  const before = JSON.stringify(registry);
+  const before = JSON.parse(JSON.stringify(registry)); // deep copy
   fn(registry);
-  const after = JSON.stringify(registry);
-  if (before === after) return registry; // nothing changed
 
-  // Upsert all entries (insert or update)
+  // Find added/updated entries
   for (const [discordId, entry] of Object.entries(registry)) {
-    await supabaseRequest('POST', '/rest/v1/registry?on_conflict=discord_id', {
-      discord_id: discordId,
-      polaris_id: entry.polarisId,
-      name: entry.name,
-      discord_name: entry.discordName,
-    });
+    if (JSON.stringify(before[discordId]) !== JSON.stringify(entry)) {
+      await upsertPlayer(discordId, entry);
+    }
   }
 
   // Find deleted entries
-  const beforeObj = JSON.parse(before);
-  for (const discordId of Object.keys(beforeObj)) {
+  for (const discordId of Object.keys(before)) {
     if (!registry[discordId]) {
-      await supabaseRequest('DELETE', `/rest/v1/registry?discord_id=eq.${discordId}`);
+      await deletePlayer(discordId);
     }
   }
 
@@ -234,7 +245,7 @@ async function scrapeWavuProfile(polarisId) {
 
   // Ratings — split by <div class="rating"
   const ratingParts = html.split('<div class="rating"');
-  console.log(`[${polarisId}] Found ${ratingParts.length - 1} rating blocks, html length: ${html.length}`);
+  console.log(`[${polarisId}] Found ${ratingParts.length - 1} rating blocks, html length: ${html.length}, preview: ${html.slice(0, 100).replace(/\n/g, ' ')}`);
   for (let i = 1; i < ratingParts.length; i++) {
     const block = ratingParts[i];
     const char     = (block.match(/<div class="char">(.*?)<\/div>/) || [])[1]?.trim();
