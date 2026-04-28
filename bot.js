@@ -14,12 +14,6 @@ const CLIENT_ID      = process.env.DISCORD_CLIENT_ID;
 const EWGF_API_KEY   = process.env.EWGF_API_KEY;
 const EWGF_HOST      = 'api.ewgf.gg';
 const WAVU_HOST      = 'wank.wavu.wiki';
-const REGISTRY_FILE  = path.join('/app/data', 'registry.json');
-
-// Ensure data directory exists
-try {
-  if (!fs.existsSync('/app/data')) fs.mkdirSync('/app/data', { recursive: true });
-} catch (e) { console.error('Could not create data dir:', e.message); }
 
 // ─── Character emoji map ─────────────────────────────────────────────────────
 const CHAR_EMOJI = {
@@ -100,17 +94,53 @@ const RANK_COLORS = {
   'God of Destruction ∞': 0xFF4500,
 };
 
-// ─── Player Registry ──────────────────────────────────────────────────────────
-function loadRegistry() {
+// ─── Player Registry via JSONBin ──────────────────────────────────────────────
+const JSONBIN_ID  = '69f0b04e856a682189814293';
+const JSONBIN_KEY = '$2a$10$lHckWhEScBLCx8XOuWNGZe4Tl9mnSyg/Wwplh8tCBChNg5rESLYQ2';
+
+async function await loadRegistry() {
+  const { status, body } = await httpGet('api.jsonbin.io', `/v3/b/${JSONBIN_ID}/latest`, {
+    'X-Master-Key': JSONBIN_KEY,
+  });
+  if (status !== 200) { console.error('JSONBin load failed:', status); return {}; }
   try {
-    if (fs.existsSync(REGISTRY_FILE)) return JSON.parse(fs.readFileSync(REGISTRY_FILE, 'utf8'));
-  } catch (e) { console.error('Failed to load registry:', e.message); }
-  return {};
+    const data = JSON.parse(body);
+    return data.record?.players ?? {};
+  } catch (e) { console.error('JSONBin parse error:', e.message); return {}; }
 }
 
-function saveRegistry(registry) {
-  try { fs.writeFileSync(REGISTRY_FILE, JSON.stringify(registry, null, 2)); }
-  catch (e) { console.error('Failed to save registry:', e.message); }
+async function saveRegistry(players) {
+  return new Promise((resolve, reject) => {
+    const body = JSON.stringify({ players });
+    const options = {
+      hostname: 'api.jsonbin.io',
+      path: `/v3/b/${JSONBIN_ID}`,
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Master-Key': JSONBIN_KEY,
+        'Content-Length': Buffer.byteLength(body),
+      },
+    };
+    const req = https.request(options, (res) => {
+      const chunks = [];
+      res.on('data', c => chunks.push(c));
+      res.on('end', () => {
+        if (res.statusCode === 200) resolve();
+        else { console.error('JSONBin save failed:', res.statusCode, Buffer.concat(chunks).toString()); reject(); }
+      });
+    });
+    req.on('error', reject);
+    req.write(body);
+    req.end();
+  });
+}
+
+async function updateRegistry(fn) {
+  const players = await loadRegistry();
+  fn(players);
+  await saveRegistry(players);
+  return players;
 }
 
 // ─── HTTP helper ──────────────────────────────────────────────────────────────
@@ -400,9 +430,7 @@ client.on('interactionCreate', async (interaction) => {
     try {
       const profile = await scrapeWavuProfile(polarisId);
       if (!profile.name) return interaction.editReply(`⚠️ Could not find player \`${polarisId}\` on wank.wavu.wiki.`);
-      const registry = loadRegistry();
-      registry[interaction.user.id] = { polarisId, name: profile.name, discordName: interaction.user.username };
-      saveRegistry(registry);
+      await updateRegistry(r => { r[interaction.user.id] = { polarisId, name: profile.name, discordName: interaction.user.username }; });
       await interaction.editReply(`✅ Registered! You are linked to **${profile.name}** (\`${polarisId}\`).`);
     } catch (err) {
       console.error(err);
@@ -413,10 +441,10 @@ client.on('interactionCreate', async (interaction) => {
 
   // ── /unregister ────────────────────────────────────────────────────────────
   if (interaction.commandName === 'unregister') {
-    const registry = loadRegistry();
-    if (registry[interaction.user.id]) {
-      delete registry[interaction.user.id];
-      saveRegistry(registry);
+    const registry = await loadRegistry();
+    const reg1 = await loadRegistry();
+    if (reg1[interaction.user.id]) {
+      await updateRegistry(r => { delete r[interaction.user.id]; });
       await interaction.reply({ content: '✅ Your Tekken ID has been unlinked.', flags: 64 });
     } else {
       await interaction.reply({ content: '⚠️ You have no registered Tekken ID.', flags: 64 });
@@ -435,9 +463,8 @@ client.on('interactionCreate', async (interaction) => {
     try {
       const profile = await scrapeWavuProfile(polarisId);
       if (!profile.name) return interaction.editReply(`⚠️ Could not find player \`${polarisId}\` on wank.wavu.wiki.`);
-      const registry = loadRegistry();
-      registry[targetUser.id] = { polarisId, name: profile.name, discordName: targetUser.username };
-      saveRegistry(registry);
+      const registry = await loadRegistry();
+      await updateRegistry(r => { r[targetUser.id] = { polarisId, name: profile.name, discordName: targetUser.username }; });
       await interaction.editReply(`✅ Registered **${targetUser.username}** as **${profile.name}** (\`${polarisId}\`).`);
     } catch (err) {
       console.error(err);
@@ -452,11 +479,11 @@ client.on('interactionCreate', async (interaction) => {
       return interaction.reply({ content: '❌ You need Administrator permissions to use this command.', flags: 64 });
     }
     const targetUser = interaction.options.getUser('user');
-    const registry = loadRegistry();
-    if (registry[targetUser.id]) {
-      const name = registry[targetUser.id].name;
-      delete registry[targetUser.id];
-      saveRegistry(registry);
+    const registry = await loadRegistry();
+    const reg2 = await loadRegistry();
+    if (reg2[targetUser.id]) {
+      const name = reg2[targetUser.id].name;
+      await updateRegistry(r => { delete r[targetUser.id]; });
       await interaction.reply({ content: `✅ Unregistered **${targetUser.username}** (was linked to **${name}**).`, flags: 64 });
     } else {
       await interaction.reply({ content: `⚠️ **${targetUser.username}** has no registered Tekken ID.`, flags: 64 });
@@ -470,7 +497,7 @@ client.on('interactionCreate', async (interaction) => {
     let polarisId = rawId;
 
     if (mention) {
-      const registry = loadRegistry();
+      const registry = await loadRegistry();
       const entry = registry[mention.id];
       if (!entry) return interaction.reply({ content: `⚠️ ${mention.username} has not registered yet.`, flags: 64 });
       polarisId = entry.polarisId;
@@ -497,7 +524,7 @@ client.on('interactionCreate', async (interaction) => {
     let polarisId = rawId;
 
     if (mention) {
-      const registry = loadRegistry();
+      const registry = await loadRegistry();
       const entry = registry[mention.id];
       if (!entry) return interaction.reply({ content: `⚠️ ${mention.username} has not registered yet.`, flags: 64 });
       polarisId = entry.polarisId;
@@ -552,7 +579,7 @@ client.on('interactionCreate', async (interaction) => {
       const medals = ['🥇', '🥈', '🥉'];
       let highlightName = null;
       if (mention) {
-        const registry = loadRegistry();
+        const registry = await loadRegistry();
         const entry = registry[mention.id];
         if (entry) highlightName = entry.name.toLowerCase();
       }
@@ -635,7 +662,7 @@ client.on('interactionCreate', async (interaction) => {
 
   if (interaction.commandName === 'glicko') {
     const mention = interaction.options.getUser('player');
-    const registry = loadRegistry();
+    const registry = await loadRegistry();
     const entries  = Object.values(registry);
 
     if (entries.length === 0) {
@@ -762,7 +789,7 @@ client.on('interactionCreate', async (interaction) => {
 
   // ── /roster ────────────────────────────────────────────────────────────────
   if (interaction.commandName === 'roster') {
-    const registry = loadRegistry();
+    const registry = await loadRegistry();
     const entries  = Object.values(registry);
     if (entries.length === 0) return interaction.reply('⚠️ No players registered yet. Use `/register` to add yourself!');
 
