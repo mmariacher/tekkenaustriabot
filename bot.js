@@ -124,6 +124,30 @@ async function scrapeWavuProfile(polarisId) {
   return result;
 }
 
+// ─── Wavu: search players by name ────────────────────────────────────────────
+async function searchWavuPlayers(query) {
+  const { status, body } = await httpGet(WAVU_HOST, '/player/search?q=' + encodeURIComponent(query));
+  if (status !== 200) return [];
+
+  const results = [];
+  const seen = new Set();
+  // Match player links: <a href="/player/ID">Name</a>
+  const rows = body.split('<a href="/player/');
+  for (let i = 1; i < rows.length; i++) {
+    const idEnd = rows[i].indexOf('"');
+    const nameStart = rows[i].indexOf('>') + 1;
+    const nameEnd = rows[i].indexOf('</a>');
+    if (idEnd < 0 || nameStart < 0 || nameEnd < 0) continue;
+    const id = rows[i].slice(0, idEnd).replace(/-/g, '');
+    const name = rows[i].slice(nameStart, nameEnd).replace(/<[^>]+>/g, '').trim();
+    if (!name || seen.has(id)) continue;
+    seen.add(id);
+    results.push({ id, name });
+    if (results.length >= 25) break;
+  }
+  return results;
+}
+
 // ─── ewgf: fetch last 50 battles ─────────────────────────────────────────────
 async function fetchEwgfBattles(polarisId) {
   const { status, body } = await httpGet(EWGF_HOST, `/external/battles/${polarisId}`, {
@@ -355,6 +379,29 @@ client.on('interactionCreate', async (interaction) => {
     } catch (err) {
       console.error(err);
       await interaction.editReply(ewgfError(err, polarisId));
+    }
+  }
+
+  // ── /search ────────────────────────────────────────────────────────────────
+  if (interaction.commandName === 'search') {
+    const query = interaction.options.getString('name');
+    await interaction.deferReply();
+    try {
+      const results = await searchWavuPlayers(query);
+      if (results.length === 0) {
+        return interaction.editReply(`No players found for "${query}".`);
+      }
+      const lines = results.map((r, i) => `**${i + 1}.** ${r.name} — \`${r.id}\``).join('\n');
+      const embed = new EmbedBuilder()
+        .setColor(0x5865F2)
+        .setTitle(`Search results for "${query}"`)
+        .setDescription(lines)
+        .setFooter({ text: 'Use /register or /profile with one of these IDs' })
+        .setTimestamp();
+      await interaction.editReply({ embeds: [embed] });
+    } catch (err) {
+      console.error(err);
+      await interaction.editReply('Something went wrong with the search.');
     }
   }
 
