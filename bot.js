@@ -14,7 +14,7 @@ const CLIENT_ID      = process.env.DISCORD_CLIENT_ID;
 const EWGF_API_KEY   = process.env.EWGF_API_KEY;
 const EWGF_HOST      = 'api.ewgf.gg';
 const WAVU_HOST      = 'wank.wavu.wiki';
-const REGISTRY_FILE  = path.join('/app', 'registry.json');
+const REGISTRY_FILE  = path.join('/app/data', 'registry.json');
 
 // ─── Character emoji map ─────────────────────────────────────────────────────
 const CHAR_EMOJI = {
