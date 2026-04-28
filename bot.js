@@ -405,6 +405,83 @@ client.on('interactionCreate', async (interaction) => {
     }
   }
 
+  // ── /leaderboard ──────────────────────────────────────────────────────────
+  if (interaction.commandName === 'leaderboard') {
+    const mention = interaction.options.getUser('player');
+    const registry = loadRegistry();
+    const entries  = Object.values(registry);
+
+    if (entries.length === 0) {
+      return interaction.reply('⚠️ No players registered yet. Use `/register` to add yourself!');
+    }
+
+    await interaction.deferReply();
+
+    // Fetch all profiles in parallel
+    const results = await Promise.allSettled(entries.map((e) => scrapeWavuProfile(e.polarisId)));
+
+    // Build scored list
+    const scored = [];
+    for (let i = 0; i < results.length; i++) {
+      const entry = entries[i];
+      if (results[i].status === 'rejected') continue;
+      const profile = results[i].value;
+      // Find highest mu across all characters
+      const best = profile.ratings.reduce((top, r) => (!top || r.mu > top.mu) ? r : top, null);
+      if (!best) continue;
+      scored.push({
+        polarisId: entry.polarisId,
+        discordId: Object.keys(registry).find(k => registry[k].polarisId === entry.polarisId),
+        name: profile.name,
+        char: best.char,
+        mu: best.mu,
+        sigma2: best.sigma2,
+        games: best.games,
+      });
+    }
+
+    // Sort by highest mu descending
+    scored.sort((a, b) => b.mu - a.mu);
+
+    const medals = ['🥇', '🥈', '🥉'];
+
+    // If a player is mentioned, find their rank
+    let highlightIdx = -1;
+    if (mention) {
+      const entry = registry[mention.id];
+      if (entry) {
+        highlightIdx = scored.findIndex(p => p.polarisId === entry.polarisId);
+      }
+    }
+
+    const lines = scored.map((p, i) => {
+      const pos = medals[i] ?? `**${i + 1}.**`;
+      const highlight = i === highlightIdx ? ' 👈' : '';
+      return `${pos} ${p.name} • ${p.char} • μ${p.mu} σ²${p.sigma2}${highlight}`;
+    });
+
+    // If mentioned player not found in scored
+    if (mention && highlightIdx === -1) {
+      const entry = registry[mention.id];
+      if (!entry) {
+        lines.push(`
+⚠️ ${mention.username} is not registered.`);
+      } else {
+        lines.push(`
+⚠️ Could not fetch data for ${mention.username}.`);
+      }
+    }
+
+    const embed = new EmbedBuilder()
+      .setColor(0xFFD700)
+      .setTitle('🏆 Tekken Austria Leaderboard')
+      .setDescription(lines.join('\n'))
+      .setFooter({ text: `${scored.length} player(s) ranked  •  Highest glicko2 μ per player  •  wank.wavu.wiki` })
+      .setTimestamp();
+
+    await interaction.editReply({ embeds: [embed] });
+  }
+
   // ── /roster ────────────────────────────────────────────────────────────────
   if (interaction.commandName === 'roster') {
     const registry = loadRegistry();
@@ -490,6 +567,15 @@ async function main() {
     new SlashCommandBuilder()
       .setName('roster')
       .setDescription('Show glicko2 ratings for all registered players'),
+
+    new SlashCommandBuilder()
+      .setName('leaderboard')
+      .setDescription('Tekken Austria Leaderboard — ranked by highest glicko2 rating')
+      .addUserOption((opt) =>
+        opt.setName('player')
+          .setDescription('Highlight a specific registered player')
+          .setRequired(false)
+      ),
 
   ].map((c) => c.toJSON());
 
