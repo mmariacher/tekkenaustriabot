@@ -232,8 +232,9 @@ async function scrapeWavuProfile(polarisId) {
   const regionMatch = html.match(/<span class="region">\s*<a[^>]*>\s*(.*?)\s*<\/a>/);
   if (regionMatch) result.region = regionMatch[1].trim();
 
-  // Ratings — split by <div class="rating"> and parse each block
-  const ratingParts = html.split('<div class="rating">');
+  // Ratings — split by <div class="rating"
+  const ratingParts = html.split('<div class="rating"');
+  console.log(`[${polarisId}] Found ${ratingParts.length - 1} rating blocks, html length: ${html.length}`);
   for (let i = 1; i < ratingParts.length; i++) {
     const block = ratingParts[i];
     const char     = (block.match(/<div class="char">(.*?)<\/div>/) || [])[1]?.trim();
