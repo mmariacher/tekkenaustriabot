@@ -354,7 +354,7 @@ client.on('interactionCreate', async (interaction) => {
 
   // ── /admin-register ────────────────────────────────────────────────────────
   if (interaction.commandName === 'admin-register') {
-    if (!interaction.member.permissions.has('Administrator')) {
+    if (!interaction.memberPermissions?.has('Administrator')) {
       return interaction.reply({ content: '❌ You need Administrator permissions to use this command.', flags: 64 });
     }
     const targetUser = interaction.options.getUser('user');
@@ -376,7 +376,7 @@ client.on('interactionCreate', async (interaction) => {
 
   // ── /admin-unregister ──────────────────────────────────────────────────────
   if (interaction.commandName === 'admin-unregister') {
-    if (!interaction.member.permissions.has('Administrator')) {
+    if (!interaction.memberPermissions?.has('Administrator')) {
       return interaction.reply({ content: '❌ You need Administrator permissions to use this command.', flags: 64 });
     }
     const targetUser = interaction.options.getUser('user');
