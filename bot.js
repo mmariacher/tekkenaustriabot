@@ -332,50 +332,14 @@ client.once('ready', () => console.log(`✅ Logged in as ${client.user.tag}`));
 // ─── Fetch Powerranking AT from Google Sheets ────────────────────────────────
 async function fetchPowerrankingAT() {
   const sheetId = '11IkWR6ExfcBknpetqL5S3KMlmKPNV_HasIyjQiZipYk';
-  const url = `/spreadsheets/d/${sheetId}/export?format=csv&gid=0`;
-  
-  return new Promise((resolve, reject) => {
-    const options = {
-      hostname: 'docs.google.com',
-      path: url,
-      method: 'GET',
-      headers: { 'User-Agent': 'TekkenAustriaBot/1.0' },
-    };
-
-    const req = https.request(options, (res) => {
-      // Handle redirects
-      if (res.statusCode === 302 || res.statusCode === 301) {
-        const redirectUrl = new URL(res.headers.location);
-        const redirectOptions = {
-          hostname: redirectUrl.hostname,
-          path: redirectUrl.pathname + redirectUrl.search,
-          method: 'GET',
-          headers: { 'User-Agent': 'TekkenAustriaBot/1.0' },
-        };
-        const req2 = https.request(redirectOptions, (res2) => {
-          const chunks = [];
-          res2.on('data', (c) => chunks.push(c));
-          res2.on('end', () => {
-            const csv = Buffer.concat(chunks).toString('utf8');
-            resolve(parseCSV(csv));
-          });
-        });
-        req2.on('error', reject);
-        req2.end();
-        return;
-      }
-
-      const chunks = [];
-      res.on('data', (c) => chunks.push(c));
-      res.on('end', () => {
-        const csv = Buffer.concat(chunks).toString('utf8');
-        resolve(parseCSV(csv));
-      });
-    });
-
-    req.on('error', reject);
-    req.end();
-  });
+  // Use the direct CSV export URL
+  const { body, status } = await httpGet('docs.google.com', `/spreadsheets/d/${sheetId}/export?format=csv&gid=0&single=true`);
+  console.log('Sheets status:', status, 'body length:', body.length, 'preview:', body.slice(0, 200));
+  if (status !== 200) {
+    console.error('Sheets fetch failed:', status);
+    return [];
+  }
+  return parseCSV(body);
 }
 
 function parseCSV(csv) {
