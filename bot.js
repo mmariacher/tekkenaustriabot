@@ -16,6 +16,54 @@ const EWGF_HOST      = 'api.ewgf.gg';
 const WAVU_HOST      = 'wank.wavu.wiki';
 const REGISTRY_FILE  = path.join('/app', 'registry.json');
 
+// ─── Character emoji map ─────────────────────────────────────────────────────
+const CHAR_EMOJI = {
+  'Alisa':       ':alisa:',
+  'Anna':        ':anna:',
+  'Armor King':  ':armor_king:',
+  'Asuka':       ':asuka:',
+  'Azucena':     ':azucena:',
+  'Bryan':       ':bryan:',
+  'Claudio':     ':claudio:',
+  'Clive':       ':clive:',
+  'Devil Jin':   ':devil_jin:',
+  'Dragunov':    ':dragunov:',
+  'Eddy':        ':eddy:',
+  'Fahkumram':   ':fahkumram:',
+  'Feng':        ':feng:',
+  'Heihachi':    ':heihachi:',
+  'Hwoarang':    ':hwoarang:',
+  'Jack-8':      ':jack8:',
+  'Jin':         ':jin:',
+  'Jun':         ':jun:',
+  'Kazuya':      ':kazuya:',
+  'King':        ':king:',
+  'Kuma':        ':kuma:',
+  'Lars':        ':lars:',
+  'Law':         ':law:',
+  'Lee':         ':lee:',
+  'Leo':         ':leo:',
+  'Leroy':       ':leroy:',
+  'Lidia':       ':lidia:',
+  'Lili':        ':lili:',
+  'Miary Zo':    ':miary_zo:',
+  'Nina':        ':nina:',
+  'Panda':       ':panda:',
+  'Paul':        ':paul:',
+  'Raven':       ':raven:',
+  'Reina':       ':reina:',
+  'Shaheen':     ':shaheen:',
+  'Steve':       ':steve:',
+  'Victor':      ':victor:',
+  'Xiaoyu':      ':xiaoyu:',
+  'Yoshimitsu':  ':yoshimitsu:',
+  'Zafina':      ':zafina:',
+};
+
+function charEmoji(name) {
+  return CHAR_EMOJI[name] ?? '';
+}
+
 // ─── Rank names ───────────────────────────────────────────────────────────────
 const RANK_NAMES = [
   'Beginner', 'Fighter', 'Strategist', 'Combatant', 'Brawler',
@@ -40,6 +88,106 @@ const RANK_COLORS = {
   'Tekken Emperor': 0xFFD700, 'Tekken God': 0xFFD700,
   'Tekken God Supreme': 0xFFD700, 'God of Destruction': 0xFF4500,
 };
+
+
+// ─── Character emoji map ──────────────────────────────────────────────────────
+const CHAR_EMOJI = {
+  'Alisa':       ':alisa:',
+  'Anna':        ':anna:',
+  'Armor King':  ':armor_king:',
+  'Asuka':       ':asuka:',
+  'Azucena':     ':azucena:',
+  'Bryan':       ':bryan:',
+  'Claudio':     ':claudio:',
+  'Clive':       ':clive:',
+  'Devil Jin':   ':devil_jin:',
+  'Dragunov':    ':dragunov:',
+  'Eddy':        ':eddy:',
+  'Fahkumram':   ':fahkumram:',
+  'Feng':        ':feng:',
+  'Heihachi':    ':heihachi:',
+  'Hwoarang':    ':hwoarang:',
+  'Jack-8':      ':jack8:',
+  'Jin':         ':jin:',
+  'Jun':         ':jun:',
+  'Kazuya':      ':kazuya:',
+  'King':        ':king:',
+  'Kuma':        ':kuma:',
+  'Lars':        ':lars:',
+  'Law':         ':law:',
+  'Lee':         ':lee:',
+  'Leo':         ':leo:',
+  'Leroy':       ':leroy:',
+  'Lidia':       ':lidia:',
+  'Lili':        ':lili:',
+  'Miary Zo':    ':miary_zo:',
+  'Nina':        ':nina:',
+  'Panda':       ':panda:',
+  'Paul':        ':paul:',
+  'Raven':       ':raven:',
+  'Reina':       ':reina:',
+  'Shaheen':     ':shaheen:',
+  'Steve':       ':steve:',
+  'Victor':      ':victor:',
+  'Xiaoyu':      ':xiaoyu:',
+  'Yoshimitsu':  ':yoshimitsu:',
+  'Zafina':      ':zafina:',
+};
+
+function charEmoji(name) {
+  return CHAR_EMOJI[name] ?? '';
+}
+
+
+// ─── Character emoji map ──────────────────────────────────────────────────────
+const CHAR_EMOJI = {
+  'Alisa':       'alisa',
+  'Anna':        'anna',
+  'Armor King':  'armor_king',
+  'Asuka':       'asuka',
+  'Azucena':     'azucena',
+  'Bryan':       'bryan',
+  'Claudio':     'claudio',
+  'Clive':       'clive',
+  'Devil Jin':   'devil_jin',
+  'Dragunov':    'dragunov',
+  'Eddy':        'eddy',
+  'Fahkumram':   'fahkumram',
+  'Feng':        'feng',
+  'Heihachi':    'heihachi',
+  'Hwoarang':    'hwoarang',
+  'Jack-8':      'jack8',
+  'Jin':         'jin',
+  'Jun':         'jun',
+  'Kazuya':      'kazuya',
+  'King':        'king',
+  'Kuma':        'kuma',
+  'Lars':        'lars',
+  'Law':         'law',
+  'Lee':         'lee',
+  'Leo':         'leo',
+  'Leroy':       'leroy',
+  'Lidia':       'lidia',
+  'Lili':        'lili',
+  'Miary Zo':    'miary_zo',
+  'Nina':        'nina',
+  'Panda':       'panda',
+  'Paul':        'paul',
+  'Raven':       'raven',
+  'Reina':       'reina',
+  'Shaheen':     'shaheen',
+  'Steve':       'steve',
+  'Victor':      'victor',
+  'Xiaoyu':      'xiaoyu',
+  'Yoshimitsu':  'yoshimitsu',
+  'Zafina':      'zafina',
+};
+
+function charEmoji(char, guildId) {
+  const name = CHAR_EMOJI[char];
+  if (!name || !guildId) return '';
+  return `:${name}:`;
+}
 
 // ─── Player Registry ──────────────────────────────────────────────────────────
 function loadRegistry() {
@@ -200,7 +348,7 @@ function buildBar(pct) {
 }
 
 // ─── Embeds ───────────────────────────────────────────────────────────────────
-function buildProfileEmbed(profile, polarisId) {
+function buildProfileEmbed(profile, polarisId, guildId) {
   const topChar = profile.ratings[0];
   const color = RANK_COLORS[topChar?.char] ?? 0x5865F2;
 
@@ -209,7 +357,7 @@ function buildProfileEmbed(profile, polarisId) {
     const sigmaStr = r.sigma2 != null ? ` σ²${r.sigma2}` : '';
     const gamesStr = r.games != null ? ` • ${r.games.toLocaleString()}g` : '';
     const dateStr  = r.lastSeen ? ` • ${r.lastSeen}` : '';
-    return '`' + r.char.padEnd(14) + '`' + ` ${muStr}${sigmaStr}${gamesStr}${dateStr}`;
+    return `${charEmoji(r.char, guildId)} \`${r.char.padEnd(14)}\` ${muStr}${sigmaStr}${gamesStr}${dateStr}`;
   }).join('\n');
 
   return new EmbedBuilder()
@@ -229,7 +377,7 @@ function buildProfileEmbed(profile, polarisId) {
 function buildTekkenEmbed(stats, polarisId) {
   const charLines = stats.charUsage.map(([char, count]) => {
     const pct = ((count / stats.gamesAnalysed) * 100).toFixed(0);
-    return '`' + char.padEnd(14) + '`' + ` ${count}g (${pct}%)`;
+    return `${charEmoji(char)} \`${char.padEnd(14)}\` ${count}g (${pct}%)`;
   }).join('\n');
 
   return new EmbedBuilder()
@@ -328,6 +476,46 @@ client.on('interactionCreate', async (interaction) => {
     }
   }
 
+
+  // ── /admin-register ────────────────────────────────────────────────────────
+  if (interaction.commandName === 'admin-register') {
+    if (!interaction.member.permissions.has('Administrator')) {
+      return interaction.reply({ content: '❌ You need Administrator permissions to use this command.', flags: 64 });
+    }
+    const targetUser = interaction.options.getUser('user');
+    const polarisId  = interaction.options.getString('id');
+    await interaction.deferReply({ flags: 64 });
+    try {
+      const profile = await scrapeWavuProfile(polarisId);
+      if (!profile.name) return interaction.editReply(`⚠️ Could not find player \`${polarisId}\` on wank.wavu.wiki.`);
+      const registry = loadRegistry();
+      registry[targetUser.id] = { polarisId, name: profile.name, discordName: targetUser.username };
+      saveRegistry(registry);
+      await interaction.editReply(`✅ Registered **${targetUser.username}** as **${profile.name}** (\`${polarisId}\`).`);
+    } catch (err) {
+      console.error(err);
+      if (err.status === 404) return interaction.editReply(`❌ Player \`${polarisId}\` not found.`);
+      await interaction.editReply('❌ Something went wrong.');
+    }
+  }
+
+  // ── /admin-unregister ──────────────────────────────────────────────────────
+  if (interaction.commandName === 'admin-unregister') {
+    if (!interaction.member.permissions.has('Administrator')) {
+      return interaction.reply({ content: '❌ You need Administrator permissions to use this command.', flags: 64 });
+    }
+    const targetUser = interaction.options.getUser('user');
+    const registry = loadRegistry();
+    if (registry[targetUser.id]) {
+      const name = registry[targetUser.id].name;
+      delete registry[targetUser.id];
+      saveRegistry(registry);
+      await interaction.reply({ content: `✅ Unregistered **${targetUser.username}** (was linked to **${name}**).`, flags: 64 });
+    } else {
+      await interaction.reply({ content: `⚠️ **${targetUser.username}** has no registered Tekken ID.`, flags: 64 });
+    }
+  }
+
   // ── /profile ───────────────────────────────────────────────────────────────
   if (interaction.commandName === 'profile') {
     const rawId   = interaction.options.getString('id');
@@ -347,7 +535,7 @@ client.on('interactionCreate', async (interaction) => {
     try {
       const profile = await scrapeWavuProfile(polarisId);
       if (!profile.name) return interaction.editReply('⚠️ Could not find this player on wank.wavu.wiki.');
-      await interaction.editReply({ embeds: [buildProfileEmbed(profile, polarisId)] });
+      await interaction.editReply({ embeds: [buildProfileEmbed(profile, polarisId, interaction.guildId)] });
     } catch (err) {
       console.error(err);
       if (err.status === 404) return interaction.editReply(`❌ Player \`${polarisId}\` not found.`);
@@ -457,7 +645,7 @@ client.on('interactionCreate', async (interaction) => {
     const lines = scored.map((p, i) => {
       const pos = medals[i] ?? `**${i + 1}.**`;
       const highlight = i === highlightIdx ? ' 👈' : '';
-      return `${pos} ${p.name} • ${p.char} • μ${p.mu} σ²${p.sigma2}${highlight}`;
+      return `${pos} ${p.name} • ${charEmoji(p.char, interaction.guildId)} ${p.char} • μ${p.mu} σ²${p.sigma2}${highlight}`;
     });
 
     // If mentioned player not found in scored
@@ -496,7 +684,7 @@ client.on('interactionCreate', async (interaction) => {
       if (result.status === 'rejected') return `❌ **${entry.name}** — failed to fetch`;
       const profile = result.value;
       const top = profile.ratings[0];
-      const ratingStr = top ? ` • ${top.char} μ${top.mu} σ²${top.sigma2}` : '';
+      const ratingStr = top ? ` • ${charEmoji(top.char, interaction.guildId)} ${top.char} μ${top.mu} σ²${top.sigma2}` : '';
       return `**${profile.name}**${ratingStr} • [profile](https://wank.wavu.wiki/player/${entry.polarisId})`;
     });
 
@@ -567,6 +755,32 @@ async function main() {
     new SlashCommandBuilder()
       .setName('roster')
       .setDescription('Show glicko2 ratings for all registered players'),
+
+    new SlashCommandBuilder()
+      .setName('admin-register')
+      .setDescription('[Admin] Register another player')
+      .setDefaultMemberPermissions(8) // Administrator only
+      .addUserOption((opt) =>
+        opt.setName('user')
+          .setDescription('The Discord user to register')
+          .setRequired(true)
+      )
+      .addStringOption((opt) =>
+        opt.setName('id')
+          .setDescription('Their Polaris ID — start typing their name to search')
+          .setRequired(true)
+          .setAutocomplete(true)
+      ),
+
+    new SlashCommandBuilder()
+      .setName('admin-unregister')
+      .setDescription('[Admin] Unregister another player')
+      .setDefaultMemberPermissions(8) // Administrator only
+      .addUserOption((opt) =>
+        opt.setName('user')
+          .setDescription('The Discord user to unregister')
+          .setRequired(true)
+      ),
 
     new SlashCommandBuilder()
       .setName('powerranking')
