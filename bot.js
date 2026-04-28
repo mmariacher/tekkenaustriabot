@@ -331,10 +331,10 @@ client.once('ready', () => console.log(`✅ Logged in as ${client.user.tag}`));
 
 // ─── Fetch Powerranking AT from Google Sheets ────────────────────────────────
 async function fetchPowerrankingAT() {
-  const sheetId = '11IkWR6ExfcBknpetqL5S3KMlmKPNV_HasIyjQiZipYk';
-  // Use the direct CSV export URL
-  const { body, status } = await httpGet('docs.google.com', `/spreadsheets/d/${sheetId}/export?format=csv&gid=0&single=true`);
-  console.log('Sheets status:', status, 'body length:', body.length, 'preview:', body.slice(0, 200));
+  const { body, status } = await httpGet(
+    'docs.google.com',
+    '/spreadsheets/d/e/2PACX-1vR77w4dnZu984fm3COEVVExbBmvvisGmOQnJJcIFe7ec4CYo03RbMi1e1WI_vYVMjgfG8EdcwLm4BJp/pub?output=csv'
+  );
   if (status !== 200) {
     console.error('Sheets fetch failed:', status);
     return [];
