@@ -581,7 +581,7 @@ async function main() {
 
   const rest = new REST({ version: '10' }).setToken(DISCORD_TOKEN);
   console.log('⏳ Registering slash commands...');
-  await rest.put(Routes.applicationCommands(CLIENT_ID), { body: commands });
+  await rest.put(Routes.applicationGuildCommands(CLIENT_ID, '1498343198391537716'), { body: commands });
   console.log('✅ Slash commands registered globally.');
 
   client.login(DISCORD_TOKEN);
