@@ -16,23 +16,7 @@ const EWGF_HOST      = 'api.ewgf.gg';
 const WAVU_HOST      = 'wank.wavu.wiki';
 const REGISTRY_FILE  = path.join('/app', 'registry.json');
 
-// ─── Character ID map ─────────────────────────────────────────────────────────
-const CHARA_ID = {
-  0:  'Jin',        1:  'Kazuya',     2:  'Paul',       3:  'Law',
-  4:  'Jack-8',     5:  'King',       6:  'Jun',        7:  'Reina',
-  8:  'Lars',       9:  'Xiaoyu',     10: 'Hwoarang',   11: 'Yoshimitsu',
-  12: 'Leroy',      13: 'Asuka',      14: 'Lili',       15: 'Nina',
-  16: 'Lee',        17: 'Kuma',       18: 'Panda',      19: 'Feng',
-  20: 'Leo',        21: 'Steve',      22: 'Bryan',      23: 'Dragunov',
-  24: 'Raven',      25: 'Shaheen',   26: 'Claudio',    27: 'Alisa',
-  28: 'Zafina',     29: 'Victor',    30: 'Devil Jin',  31: 'Azucena',
-  32: 'Lidia',      33: 'Armor King', 34: 'Miary Zo',  35: 'Anna',
-  36: 'Eddy',       37: 'Heihachi',  38: 'Clive',      39: 'Fahkumram',
-  40: 'Reina',      41: 'Lars',      42: 'Xiaoyu',     43: 'Yoshimitsu',
-  44: 'Leroy',      45: 'Steve',
-};
-
-// ─── Rank maps ────────────────────────────────────────────────────────────────
+// ─── Rank names ───────────────────────────────────────────────────────────────
 const RANK_NAMES = [
   'Beginner', 'Fighter', 'Strategist', 'Combatant', 'Brawler',
   'Ranger', 'Cavalry', 'Warrior', 'Assailant', 'Dominator',
@@ -90,72 +74,68 @@ function httpGet(hostname, urlPath, headers = {}) {
           : (b) => Promise.resolve(b);
 
         decompress(buf).then((data) => {
-          const raw = data.toString('utf8');
-          try {
-            const json = JSON.parse(raw);
-            resolve({ status: res.statusCode, json });
-          } catch (e) {
-            console.error('Failed to parse JSON:', raw.slice(0, 300));
-            reject(new Error('Failed to parse JSON'));
-          }
+          resolve({ status: res.statusCode, body: data.toString('utf8') });
         }).catch(reject);
       });
     });
-
     req.on('error', reject);
     req.end();
   });
 }
 
-// ─── ewgf.gg: fetch last 50 battles ──────────────────────────────────────────
-async function fetchEwgfBattles(polarisId) {
-  const res = await httpGet(EWGF_HOST, `/external/battles/${polarisId}`, {
-    'Authorization': `Bearer ${EWGF_API_KEY}`,
-  });
-  if (res.status !== 200) throw { status: res.status };
-  return res.json.data;
-}
+// ─── Wavu: scrape player profile page ────────────────────────────────────────
+async function scrapeWavuProfile(polarisId) {
+  const { status, body } = await httpGet(WAVU_HOST, `/player/${polarisId}`);
+  if (status === 404) throw { status: 404 };
 
-// ─── wavu: fetch glicko2 ratings by scanning recent replays ──────────────────
-const WAVU_BATCHES = 20; // ~4 hours, just for ratings
+  const html = body;
+  const result = { name: null, region: null, ratings: [] };
 
-async function fetchWavuRatings(polarisId) {
-  let before = Math.floor(Date.now() / 1000);
-  const charRatings = {};
+  // Name
+  const nameMatch = html.match(/<div class="name">\s*([\s\S]*?)\s*<\/div>/);
+  if (nameMatch) result.name = nameMatch[1].trim();
 
-  for (let i = 0; i < WAVU_BATCHES; i++) {
-    const { json } = await httpGet(WAVU_HOST, `/api/replays?before=${before}`);
-    if (!Array.isArray(json) || json.length === 0) break;
+  // Region
+  const regionMatch = html.match(/<span class="region">\s*<a[^>]*>\s*(.*?)\s*<\/a>/);
+  if (regionMatch) result.region = regionMatch[1].trim();
 
-    for (const b of json) {
-      const isP1 = b.p1_polaris_id === polarisId;
-      const isP2 = b.p2_polaris_id === polarisId;
-      if (isP1 || isP2) {
-        const charaId = isP1 ? b.p1_chara_id : b.p2_chara_id;
-        const charName = CHARA_ID[charaId] ?? `Char#${charaId}`;
-        const rating = isP1 ? b.p1_rating_before : b.p2_rating_before;
-        const ratingChange = isP1 ? b.p1_rating_change : b.p2_rating_change;
+  // Ratings — parse each rating block
+  const ratingBlockRegex = /<div class="rating">([\s\S]*?)<\/div>\s*<\/div>/g;
+  let match;
+  while ((match = ratingBlockRegex.exec(html)) !== null) {
+    const block = match[1];
+    const char    = (block.match(/<div class="char">(.*?)<\/div>/) || [])[1]?.trim();
+    const mu      = (block.match(/<div class="mu">μ\s*(\d+)<\/div>/) || [])[1];
+    const sigma2  = (block.match(/σ²\s*(\d+)/) || [])[1];
+    const games   = (block.match(/<div class="games">([\d,]+)\s*games/) || [])[1]?.replace(/,/g, '');
+    const lastSeen = (block.match(/printDate\((\d+)\)/) || [])[1];
 
-        // Only store the most recent rating per character
-        if (rating !== null && !charRatings[charName]) {
-          charRatings[charName] = { rating, ratingChange };
-        }
-      }
+    if (char && mu) {
+      result.ratings.push({
+        char,
+        mu: parseInt(mu),
+        sigma2: sigma2 ? parseInt(sigma2) : null,
+        games: games ? parseInt(games) : null,
+        lastSeen: lastSeen ? new Date(parseInt(lastSeen) * 1000).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: '2-digit' }) : null,
+      });
     }
-
-    before = json[json.length - 1].battle_at - 1;
-
-    // Stop early if we found ratings for all chars
-    if (Object.keys(charRatings).length > 0 && i > 2) break;
   }
 
-  return charRatings;
+  return result;
+}
+
+// ─── ewgf: fetch last 50 battles ─────────────────────────────────────────────
+async function fetchEwgfBattles(polarisId) {
+  const { status, body } = await httpGet(EWGF_HOST, `/external/battles/${polarisId}`, {
+    'Authorization': `Bearer ${EWGF_API_KEY}`,
+  });
+  if (status !== 200) throw { status };
+  return JSON.parse(body).data;
 }
 
 // ─── Analyse ewgf battles ─────────────────────────────────────────────────────
 function analyseBattles(battles, polarisId) {
   if (!battles || battles.length === 0) return null;
-
   const recent = battles.slice(0, 50);
   let wins = 0;
   const charCounts = {};
@@ -164,12 +144,11 @@ function analyseBattles(battles, polarisId) {
   for (const b of recent) {
     const isP1 = b.p1_tekken_id === polarisId;
     if (isP1 ? b.winner === 1 : b.winner === 2) wins++;
-
     const char = isP1 ? b.p1_char : b.p2_char;
     charCounts[char] = (charCounts[char] || 0) + 1;
-
     const rank = isP1 ? b.p1_dan_rank : b.p2_dan_rank;
-    const rankIdx = RANK_NAMES.indexOf(rank);
+    const rankBase = rank ? rank.replace(/ (I{1,3}|IV|IX|V|VI{0,3}|X)$/i, '').trim() : '';
+    const rankIdx = RANK_NAMES.indexOf(rankBase) >= 0 ? RANK_NAMES.indexOf(rankBase) : RANK_NAMES.indexOf(rank);
     if (rankIdx > highestRankIdx) highestRankIdx = rankIdx;
   }
 
@@ -185,7 +164,7 @@ function analyseBattles(battles, polarisId) {
     winRate: ((wins / recent.length) * 100).toFixed(1),
     charUsage,
     currentRank: isP1Latest ? latest.p1_dan_rank : latest.p2_dan_rank,
-    highestRank: RANK_NAMES[highestRankIdx] ?? 'Unknown',
+    highestRank: highestRankIdx >= 0 ? RANK_NAMES[highestRankIdx] : (isP1Latest ? latest.p1_dan_rank : latest.p2_dan_rank),
     tekkenPower: isP1Latest ? latest.p1_tekken_power : latest.p2_tekken_power,
     region: isP1Latest ? latest.p1_region : latest.p2_region,
   };
@@ -196,14 +175,37 @@ function buildBar(pct) {
   return '`' + '█'.repeat(filled) + '░'.repeat(10 - filled) + '`' + ` ${pct}%`;
 }
 
-function buildEmbed(stats, charRatings, polarisId) {
+// ─── Embeds ───────────────────────────────────────────────────────────────────
+function buildProfileEmbed(profile, polarisId) {
+  const topChar = profile.ratings[0];
+  const color = RANK_COLORS[topChar?.char] ?? 0x5865F2;
+
+  const ratingLines = profile.ratings.map((r) => {
+    const muStr    = `μ${r.mu}`;
+    const sigmaStr = r.sigma2 != null ? ` σ²${r.sigma2}` : '';
+    const gamesStr = r.games != null ? ` • ${r.games.toLocaleString()}g` : '';
+    const dateStr  = r.lastSeen ? ` • ${r.lastSeen}` : '';
+    return '`' + r.char.padEnd(14) + '`' + ` ${muStr}${sigmaStr}${gamesStr}${dateStr}`;
+  }).join('\n');
+
+  return new EmbedBuilder()
+    .setColor(0x5865F2)
+    .setTitle(`📊 ${profile.name}`)
+    .setURL(`https://wank.wavu.wiki/player/${polarisId}`)
+    .setDescription(`**ID:** \`${polarisId}\`  •  **Region:** ${profile.region ?? 'Unknown'}`)
+    .addFields({
+      name: '🏅 Glicko2 Ratings',
+      value: ratingLines || 'No rated characters found.',
+      inline: false,
+    })
+    .setFooter({ text: 'Data from wank.wavu.wiki' })
+    .setTimestamp();
+}
+
+function buildTekkenEmbed(stats, polarisId) {
   const charLines = stats.charUsage.map(([char, count]) => {
     const pct = ((count / stats.gamesAnalysed) * 100).toFixed(0);
-    const rating = charRatings[char];
-    const ratingStr = rating
-      ? ` • μ${rating.rating} (${rating.ratingChange >= 0 ? '+' : ''}${rating.ratingChange})`
-      : '';
-    return '`' + char.padEnd(14) + '`' + ` ${count}g (${pct}%)${ratingStr}`;
+    return '`' + char.padEnd(14) + '`' + ` ${count}g (${pct}%)`;
   }).join('\n');
 
   return new EmbedBuilder()
@@ -231,18 +233,14 @@ function buildEmbed(stats, charRatings, polarisId) {
         inline: true,
       },
       { name: '\u200B', value: '\u200B', inline: false },
-      {
-        name: '🕹️ Character Usage & Glicko2 Rating',
-        value: charLines || 'No data',
-        inline: false,
-      },
+      { name: '🕹️ Character Usage', value: charLines || 'No data', inline: false },
     )
-    .setFooter({ text: 'Battles: ewgf.gg  •  Ratings: wank.wavu.wiki' })
+    .setFooter({ text: 'Data from ewgf.gg  •  24h delay on free plan' })
     .setTimestamp();
 }
 
-function ewgfErrorMessage(err, polarisId) {
-  if (err.status === 404) return `❌ Player \`${polarisId}\` not found on ewgf.gg.`;
+function ewgfError(err, id) {
+  if (err.status === 404) return `❌ Player \`${id}\` not found on ewgf.gg.`;
   if (err.status === 401) return '❌ Invalid EWGF API key.';
   if (err.status === 429) return '⏳ Rate limit hit. Try again in a moment.';
   return '❌ Something went wrong fetching battle data.';
@@ -252,29 +250,49 @@ function ewgfErrorMessage(err, polarisId) {
 const client = new Client({ intents: [GatewayIntentBits.Guilds] });
 client.once('ready', () => console.log(`✅ Logged in as ${client.user.tag}`));
 
+
+// ─── Autocomplete handler ─────────────────────────────────────────────────────
+client.on('interactionCreate', async (interaction) => {
+  if (!interaction.isAutocomplete()) return;
+
+  const focused = interaction.options.getFocused();
+  if (!focused || focused.length < 2) {
+    return interaction.respond([]);
+  }
+
+  try {
+    const results = await searchWavuPlayers(focused);
+    await interaction.respond(
+      results.map((r) => ({ name: `${r.name} (${r.id})`, value: r.id }))
+    );
+  } catch (err) {
+    console.error('Autocomplete error:', err.message);
+    await interaction.respond([]);
+  }
+});
+
 client.on('interactionCreate', async (interaction) => {
   if (!interaction.isChatInputCommand()) return;
 
-  // /register
+  // ── /register ──────────────────────────────────────────────────────────────
   if (interaction.commandName === 'register') {
     const polarisId = interaction.options.getString('id');
     await interaction.deferReply({ flags: 64 });
     try {
-      const battles = await fetchEwgfBattles(polarisId);
-      const stats = analyseBattles(battles, polarisId);
-      if (!stats) return interaction.editReply('⚠️ No battle data found. Check the ID and try again.');
-
+      const profile = await scrapeWavuProfile(polarisId);
+      if (!profile.name) return interaction.editReply(`⚠️ Could not find player \`${polarisId}\` on wank.wavu.wiki.`);
       const registry = loadRegistry();
-      registry[interaction.user.id] = { polarisId, name: stats.name, discordName: interaction.user.username };
+      registry[interaction.user.id] = { polarisId, name: profile.name, discordName: interaction.user.username };
       saveRegistry(registry);
-      await interaction.editReply(`✅ Registered! You are linked to **${stats.name}** (\`${polarisId}\`).`);
+      await interaction.editReply(`✅ Registered! You are linked to **${profile.name}** (\`${polarisId}\`).`);
     } catch (err) {
       console.error(err);
-      await interaction.editReply(ewgfErrorMessage(err, polarisId));
+      if (err.status === 404) return interaction.editReply(`❌ Player \`${polarisId}\` not found.`);
+      await interaction.editReply('❌ Something went wrong.');
     }
   }
 
-  // /unregister
+  // ── /unregister ────────────────────────────────────────────────────────────
   if (interaction.commandName === 'unregister') {
     const registry = loadRegistry();
     if (registry[interaction.user.id]) {
@@ -286,7 +304,34 @@ client.on('interactionCreate', async (interaction) => {
     }
   }
 
-  // /tekken
+  // ── /profile ───────────────────────────────────────────────────────────────
+  if (interaction.commandName === 'profile') {
+    const rawId   = interaction.options.getString('id');
+    const mention = interaction.options.getUser('player');
+    let polarisId = rawId;
+
+    if (mention) {
+      const registry = loadRegistry();
+      const entry = registry[mention.id];
+      if (!entry) return interaction.reply({ content: `⚠️ ${mention.username} has not registered yet.`, flags: 64 });
+      polarisId = entry.polarisId;
+    }
+
+    if (!polarisId) return interaction.reply({ content: '⚠️ Please provide an ID or mention a registered player.', flags: 64 });
+
+    await interaction.deferReply();
+    try {
+      const profile = await scrapeWavuProfile(polarisId);
+      if (!profile.name) return interaction.editReply('⚠️ Could not find this player on wank.wavu.wiki.');
+      await interaction.editReply({ embeds: [buildProfileEmbed(profile, polarisId)] });
+    } catch (err) {
+      console.error(err);
+      if (err.status === 404) return interaction.editReply(`❌ Player \`${polarisId}\` not found.`);
+      await interaction.editReply('❌ Something went wrong.');
+    }
+  }
+
+  // ── /tekken ────────────────────────────────────────────────────────────────
   if (interaction.commandName === 'tekken') {
     const rawId   = interaction.options.getString('id');
     const mention = interaction.options.getUser('player');
@@ -295,69 +340,47 @@ client.on('interactionCreate', async (interaction) => {
     if (mention) {
       const registry = loadRegistry();
       const entry = registry[mention.id];
-      if (!entry) {
-        return interaction.reply({
-          content: `⚠️ ${mention.username} has not registered yet. They can use \`/register\` to link their ID.`,
-          flags: 64,
-        });
-      }
+      if (!entry) return interaction.reply({ content: `⚠️ ${mention.username} has not registered yet.`, flags: 64 });
       polarisId = entry.polarisId;
     }
 
-    if (!polarisId) {
-      return interaction.reply({ content: '⚠️ Please provide an ID or mention a registered player.', flags: 64 });
-    }
+    if (!polarisId) return interaction.reply({ content: '⚠️ Please provide an ID or mention a registered player.', flags: 64 });
 
     await interaction.deferReply();
     try {
-      // Fetch ewgf battles + wavu ratings in parallel
-      const [battles, charRatings] = await Promise.all([
-        fetchEwgfBattles(polarisId),
-        fetchWavuRatings(polarisId).catch(() => ({})), // ratings are optional
-      ]);
-
+      const battles = await fetchEwgfBattles(polarisId);
       const stats = analyseBattles(battles, polarisId);
       if (!stats) return interaction.editReply('⚠️ No battle data found for this player.');
-      await interaction.editReply({ embeds: [buildEmbed(stats, charRatings, polarisId)] });
+      await interaction.editReply({ embeds: [buildTekkenEmbed(stats, polarisId)] });
     } catch (err) {
       console.error(err);
-      await interaction.editReply(ewgfErrorMessage(err, polarisId));
+      await interaction.editReply(ewgfError(err, polarisId));
     }
   }
 
-  // /roster
+  // ── /roster ────────────────────────────────────────────────────────────────
   if (interaction.commandName === 'roster') {
     const registry = loadRegistry();
     const entries  = Object.values(registry);
-    if (entries.length === 0) {
-      return interaction.reply('⚠️ No players registered yet. Use `/register` to add yourself!');
-    }
+    if (entries.length === 0) return interaction.reply('⚠️ No players registered yet. Use `/register` to add yourself!');
 
     await interaction.deferReply();
-    const results = await Promise.allSettled(
-      entries.map((e) => Promise.all([
-        fetchEwgfBattles(e.polarisId),
-        fetchWavuRatings(e.polarisId).catch(() => ({})),
-      ]))
-    );
+    const results = await Promise.allSettled(entries.map((e) => scrapeWavuProfile(e.polarisId)));
 
     const lines = results.map((result, i) => {
       const entry = entries[i];
       if (result.status === 'rejected') return `❌ **${entry.name}** — failed to fetch`;
-      const [battles, charRatings] = result.value;
-      const stats = analyseBattles(battles, entry.polarisId);
-      if (!stats) return `⚠️ **${entry.name}** — no battle data`;
-      const mainChar = stats.charUsage[0]?.[0] ?? '?';
-      const rating = charRatings[mainChar];
-      const ratingStr = rating ? ` • μ${rating.rating}` : '';
-      return `**${stats.name}** • ${stats.currentRank} • ${mainChar}${ratingStr} • ${stats.winRate}% WR (${stats.wins}W-${stats.losses}L)`;
+      const profile = result.value;
+      const top = profile.ratings[0];
+      const ratingStr = top ? ` • ${top.char} μ${top.mu} σ²${top.sigma2}` : '';
+      return `**${profile.name}**${ratingStr} • [profile](https://wank.wavu.wiki/player/${entry.polarisId})`;
     });
 
     const embed = new EmbedBuilder()
       .setColor(0x5865F2)
       .setTitle('🏆 Tekken Austria Roster')
       .setDescription(lines.join('\n'))
-      .setFooter({ text: `${entries.length} registered player(s)  •  ewgf.gg + wank.wavu.wiki` })
+      .setFooter({ text: `${entries.length} registered player(s)  •  wank.wavu.wiki` })
       .setTimestamp();
 
     await interaction.editReply({ embeds: [embed] });
@@ -375,21 +398,51 @@ async function main() {
     new SlashCommandBuilder()
       .setName('register')
       .setDescription('Link your Discord account to your Tekken ID')
-      .addStringOption((opt) => opt.setName('id').setDescription('Your Polaris ID (find it on wank.wavu.wiki or ewgf.gg)').setRequired(true)),
+      .addStringOption((opt) =>
+        opt.setName('id')
+          .setDescription('Your Polaris ID — start typing your name to search')
+          .setRequired(true)
+          .setAutocomplete(true)
+      ),
 
     new SlashCommandBuilder()
       .setName('unregister')
       .setDescription('Unlink your Tekken ID from your Discord account'),
 
     new SlashCommandBuilder()
+      .setName('search')
+      .setDescription('Search for a Tekken player by name')
+      .addStringOption((opt) =>
+        opt.setName('name')
+          .setDescription('Player name to search for')
+          .setRequired(true)
+      ),
+
+    new SlashCommandBuilder()
+      .setName('profile')
+      .setDescription('Show glicko2 ratings from wank.wavu.wiki')
+      .addStringOption((opt) =>
+        opt.setName('id')
+          .setDescription('Polaris ID — start typing your name to search')
+          .setRequired(false)
+          .setAutocomplete(true)
+      )
+      .addUserOption((opt) => opt.setName('player').setDescription('Mention a registered Discord user').setRequired(false)),
+
+    new SlashCommandBuilder()
       .setName('tekken')
-      .setDescription('Look up a Tekken 8 player\'s stats')
-      .addStringOption((opt) => opt.setName('id').setDescription('Polaris ID from wank.wavu.wiki or ewgf.gg').setRequired(false))
+      .setDescription('Show last 50 games, win rate and peak rank from ewgf.gg')
+      .addStringOption((opt) =>
+        opt.setName('id')
+          .setDescription('Polaris ID — start typing your name to search')
+          .setRequired(false)
+          .setAutocomplete(true)
+      )
       .addUserOption((opt) => opt.setName('player').setDescription('Mention a registered Discord user').setRequired(false)),
 
     new SlashCommandBuilder()
       .setName('roster')
-      .setDescription('Show stats for all registered players'),
+      .setDescription('Show glicko2 ratings for all registered players'),
 
   ].map((c) => c.toJSON());
 
