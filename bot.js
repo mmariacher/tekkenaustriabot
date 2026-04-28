@@ -232,15 +232,14 @@ async function scrapeWavuProfile(polarisId) {
   const regionMatch = html.match(/<span class="region">\s*<a[^>]*>\s*(.*?)\s*<\/a>/);
   if (regionMatch) result.region = regionMatch[1].trim();
 
-  // Ratings — parse each rating block
-  const ratingBlockRegex = /<div class="rating">([\s\S]*?)<\/div>\s*<\/div>/g;
-  let match;
-  while ((match = ratingBlockRegex.exec(html)) !== null) {
-    const block = match[1];
-    const char    = (block.match(/<div class="char">(.*?)<\/div>/) || [])[1]?.trim();
-    const mu      = (block.match(/<div class="mu">μ\s*(\d+)<\/div>/) || [])[1];
-    const sigma2  = (block.match(/σ²\s*(\d+)/) || [])[1];
-    const games   = (block.match(/<div class="games">([\d,]+)\s*games/) || [])[1]?.replace(/,/g, '');
+  // Ratings — split by <div class="rating"> and parse each block
+  const ratingParts = html.split('<div class="rating">');
+  for (let i = 1; i < ratingParts.length; i++) {
+    const block = ratingParts[i];
+    const char     = (block.match(/<div class="char">(.*?)<\/div>/) || [])[1]?.trim();
+    const mu       = (block.match(/<div class="mu">μ\s*(\d+)<\/div>/) || [])[1];
+    const sigma2   = (block.match(/σ²\s*(\d+)/) || [])[1];
+    const games    = (block.match(/<div class="games">([\d,]+)\s*games/) || [])[1]?.replace(/,/g, '');
     const lastSeen = (block.match(/printDate\((\d+)\)/) || [])[1];
 
     if (char && mu) {
