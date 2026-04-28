@@ -16,6 +16,11 @@ const EWGF_HOST      = 'api.ewgf.gg';
 const WAVU_HOST      = 'wank.wavu.wiki';
 const REGISTRY_FILE  = path.join('/app/data', 'registry.json');
 
+// Ensure data directory exists
+try {
+  if (!fs.existsSync('/app/data')) fs.mkdirSync('/app/data', { recursive: true });
+} catch (e) { console.error('Could not create data dir:', e.message); }
+
 // ─── Character emoji map ─────────────────────────────────────────────────────
 const CHAR_EMOJI = {
   'Alisa':       '<:alisa:1447498187811192853>',
@@ -536,8 +541,8 @@ client.on('interactionCreate', async (interaction) => {
   }
 
   // ── /leaderboard ──────────────────────────────────────────────────────────
-  // ── /powerrankingat ───────────────────────────────────────────────────────
-  if (interaction.commandName === 'powerrankingat') {
+  // ── /powerranking (AT) ─────────────────────────────────────────────────────
+  if (interaction.commandName === 'powerranking') {
     const mention = interaction.options.getUser('player');
     await interaction.deferReply();
     try {
@@ -628,7 +633,7 @@ client.on('interactionCreate', async (interaction) => {
     }
   }
 
-  if (interaction.commandName === 'powerranking') {
+  if (interaction.commandName === 'glicko') {
     const mention = interaction.options.getUser('player');
     const registry = loadRegistry();
     const entries  = Object.values(registry);
@@ -694,14 +699,65 @@ client.on('interactionCreate', async (interaction) => {
       }
     }
 
-    const embed = new EmbedBuilder()
-      .setColor(0xFFD700)
-      .setTitle('🏆 Tekken Austria Leaderboard')
-      .setDescription(lines.join('\n'))
-      .setFooter({ text: `${scored.length} player(s) ranked  •  Highest glicko2 μ per player  •  wank.wavu.wiki` })
-      .setTimestamp();
+    const chunkSize = 15;
+    const chunks = [];
+    for (let i = 0; i < lines.length; i += chunkSize) {
+      chunks.push(lines.slice(i, i + chunkSize));
+    }
+    const totalPages = chunks.length;
 
-    await interaction.editReply({ embeds: [embed] });
+    function buildGlickoPage(page) {
+      const embed = new EmbedBuilder()
+        .setColor(0xFFD700)
+        .setTitle('🏆 Tekken Austria Glicko2 Ranking')
+        .setDescription(chunks[page].join('\n'))
+        .setFooter({ text: `Seite ${page + 1}/${totalPages} • ${scored.length} Spieler • wank.wavu.wiki` })
+        .setTimestamp();
+
+      const row = new ActionRowBuilder().addComponents(
+        new ButtonBuilder()
+          .setCustomId('glicko_prev')
+          .setLabel('◀️ Zurück')
+          .setStyle(ButtonStyle.Secondary)
+          .setDisabled(page === 0),
+        new ButtonBuilder()
+          .setCustomId('glicko_next')
+          .setLabel('Weiter ▶️')
+          .setStyle(ButtonStyle.Secondary)
+          .setDisabled(page === totalPages - 1),
+      );
+
+      return { embeds: [embed], components: totalPages > 1 ? [row] : [] };
+    }
+
+    let currentPage = 0;
+    if (highlightIdx >= 0) currentPage = Math.floor(highlightIdx / chunkSize);
+
+    const msg = await interaction.editReply(buildGlickoPage(currentPage));
+
+    if (totalPages > 1) {
+      const collector = msg.createMessageComponentCollector({
+        componentType: ComponentType.Button,
+        time: 5 * 60 * 1000,
+      });
+
+      collector.on('collect', async (btn) => {
+        if (btn.user.id !== interaction.user.id) {
+          return btn.reply({ content: '❌ Nur der Aufrufer kann blättern.', ephemeral: true });
+        }
+        if (btn.customId === 'glicko_prev' && currentPage > 0) currentPage--;
+        if (btn.customId === 'glicko_next' && currentPage < totalPages - 1) currentPage++;
+        await btn.update(buildGlickoPage(currentPage));
+      });
+
+      collector.on('end', () => {
+        const row = new ActionRowBuilder().addComponents(
+          new ButtonBuilder().setCustomId('glicko_prev').setLabel('◀️ Zurück').setStyle(ButtonStyle.Secondary).setDisabled(true),
+          new ButtonBuilder().setCustomId('glicko_next').setLabel('Weiter ▶️').setStyle(ButtonStyle.Secondary).setDisabled(true),
+        );
+        interaction.editReply({ components: [row] }).catch(() => {});
+      });
+    }
   }
 
   // ── /roster ────────────────────────────────────────────────────────────────
@@ -817,7 +873,7 @@ async function main() {
       ),
 
     new SlashCommandBuilder()
-      .setName('powerrankingat')
+      .setName('powerranking')
       .setDescription('🇦🇹 Powerranking Austria — Braacket Ranking')
       .addUserOption((opt) =>
         opt.setName('player')
@@ -826,8 +882,8 @@ async function main() {
       ),
 
     new SlashCommandBuilder()
-      .setName('powerranking')
-      .setDescription('Tekken Austria Power Ranking — ranked by highest glicko2 rating')
+      .setName('glicko')
+      .setDescription('Tekken Austria Glicko2 Ranking — ranked by highest glicko2 rating')
       .addUserOption((opt) =>
         opt.setName('player')
           .setDescription('Highlight a specific registered player')
