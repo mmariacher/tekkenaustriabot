@@ -564,6 +564,52 @@ client.on('interactionCreate', async (interaction) => {
   }
 
   // ── /leaderboard ──────────────────────────────────────────────────────────
+  // ── /powerrankingat ───────────────────────────────────────────────────────
+  if (interaction.commandName === 'powerrankingat') {
+    const mention = interaction.options.getUser('player');
+    await interaction.deferReply();
+    try {
+      const players = await fetchPowerrankingAT();
+      if (!players.length) return interaction.editReply('⚠️ Konnte das Ranking nicht laden.');
+
+      const medals = ['🥇', '🥈', '🥉'];
+      let highlightName = null;
+      if (mention) {
+        const registry = loadRegistry();
+        const entry = registry[mention.id];
+        if (entry) highlightName = entry.name.toLowerCase();
+      }
+
+      const lines = players.map((p) => {
+        const pos = medals[p.rank - 1] ?? `**${p.rank}.**`;
+        const highlight = highlightName && p.name.toLowerCase().includes(highlightName) ? ' 👈' : '';
+        return `${pos} **${p.name}** • ${p.score} Pts${highlight}`;
+      });
+
+      const chunkSize = 25;
+      const chunks = [];
+      for (let i = 0; i < lines.length; i += chunkSize) {
+        chunks.push(lines.slice(i, i + chunkSize));
+      }
+
+      const embeds = chunks.map((chunk, i) =>
+        new EmbedBuilder()
+          .setColor(0xFFD700)
+          .setTitle(i === 0 ? '🇦🇹 Powerranking Austria' : '🇦🇹 Powerranking Austria (Fortsetzung)')
+          .setDescription(chunk.join('\n'))
+          .setFooter(i === chunks.length - 1 ? { text: `${players.length} Spieler • braacket.com/league/TekkenAustria` } : { text: '...' })
+      );
+
+      await interaction.editReply({ embeds: [embeds[0]] });
+      for (let i = 1; i < embeds.length; i++) {
+        await interaction.followUp({ embeds: [embeds[i]] });
+      }
+    } catch (err) {
+      console.error('powerrankingat error:', err);
+      await interaction.editReply('❌ Fehler beim Laden des Rankings.');
+    }
+  }
+
   if (interaction.commandName === 'powerranking') {
     const mention = interaction.options.getUser('player');
     const registry = loadRegistry();
