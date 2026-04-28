@@ -64,6 +64,37 @@ function charEmoji(char) {
   return CHAR_EMOJI[char] ?? '';
 }
 
+// ─── Rank names ───────────────────────────────────────────────────────────────
+const RANK_NAMES = [
+  'Beginner', '1st Dan', '2nd Dan', 'Fighter', 'Strategist', 'Combatant',
+  'Brawler', 'Ranger', 'Cavalry', 'Warrior', 'Assailant', 'Dominator',
+  'Vanquisher', 'Destroyer', 'Eliminator', 'Garyu', 'Shinryu', 'Tenryu',
+  'Mighty Ruler', 'Flame Ruler', 'Battle Ruler', 'Fujin', 'Raijin', 'Kishin',
+  'Bushin', 'Tekken King', 'Tekken Emperor', 'Tekken God',
+  'Tekken God Supreme', 'God of Destruction', 'God of Destruction I',
+  'God of Destruction II', 'God of Destruction III', 'God of Destruction IV',
+  'God of Destruction V', 'God of Destruction VI', 'God of Destruction VII',
+  'God of Destruction ∞',
+];
+
+const RANK_COLORS = {
+  'Beginner': 0x8B4513, '1st Dan': 0xC0C0C0, '2nd Dan': 0xC0C0C0,
+  'Fighter': 0x00CED1, 'Strategist': 0x00CED1, 'Combatant': 0x00CED1,
+  'Brawler': 0x008000, 'Ranger': 0x008000, 'Cavalry': 0x008000,
+  'Warrior': 0xFFD700, 'Assailant': 0xFFD700, 'Dominator': 0xFFD700,
+  'Vanquisher': 0xFF8C00, 'Destroyer': 0xFF8C00, 'Eliminator': 0xFF8C00,
+  'Garyu': 0xFF0000, 'Shinryu': 0xFF0000, 'Tenryu': 0xFF0000,
+  'Mighty Ruler': 0xFF0000, 'Flame Ruler': 0xFF0000, 'Battle Ruler': 0xFF0000,
+  'Fujin': 0x00BFFF, 'Raijin': 0x00BFFF, 'Kishin': 0x00BFFF, 'Bushin': 0x00BFFF,
+  'Tekken King': 0x9B59B6, 'Tekken Emperor': 0x9B59B6,
+  'Tekken God': 0xFFD700, 'Tekken God Supreme': 0xFFD700,
+  'God of Destruction': 0xFF4500, 'God of Destruction I': 0xFF4500,
+  'God of Destruction II': 0xFF4500, 'God of Destruction III': 0xFF4500,
+  'God of Destruction IV': 0xFF4500, 'God of Destruction V': 0xFF4500,
+  'God of Destruction VI': 0xFF4500, 'God of Destruction VII': 0xFF4500,
+  'God of Destruction ∞': 0xFF4500,
+};
+
 // ─── Player Registry ──────────────────────────────────────────────────────────
 function loadRegistry() {
   try {
