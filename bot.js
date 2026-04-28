@@ -406,7 +406,7 @@ client.on('interactionCreate', async (interaction) => {
   }
 
   // ── /leaderboard ──────────────────────────────────────────────────────────
-  if (interaction.commandName === 'leaderboard') {
+  if (interaction.commandName === 'powerranking') {
     const mention = interaction.options.getUser('player');
     const registry = loadRegistry();
     const entries  = Object.values(registry);
@@ -569,8 +569,8 @@ async function main() {
       .setDescription('Show glicko2 ratings for all registered players'),
 
     new SlashCommandBuilder()
-      .setName('leaderboard')
-      .setDescription('Tekken Austria Leaderboard — ranked by highest glicko2 rating')
+      .setName('powerranking')
+      .setDescription('Tekken Austria Power Ranking — ranked by highest glicko2 rating')
       .addUserOption((opt) =>
         opt.setName('player')
           .setDescription('Highlight a specific registered player')
