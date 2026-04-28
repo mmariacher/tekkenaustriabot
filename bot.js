@@ -716,8 +716,12 @@ client.on('interactionCreate', async (interaction) => {
       return interaction.editReply('⚠️ No players registered yet. Use `/register` to add yourself!');
     }
 
-    // Fetch all profiles in parallel
-    const results = await Promise.allSettled(entries.map((e) => scrapeWavuProfile(e.polarisId)));
+    // Fetch profiles sequentially with small delay to avoid rate limiting
+    const results = [];
+    for (const entry of entries) {
+      results.push(await scrapeWavuProfile(entry.polarisId).then(v => ({ status: 'fulfilled', value: v })).catch(r => ({ status: 'rejected', reason: r })));
+      await new Promise(r => setTimeout(r, 300)); // 300ms delay between requests
+    }
 
     // Build scored list
     const scored = [];
@@ -852,7 +856,11 @@ client.on('interactionCreate', async (interaction) => {
     const registry = await loadRegistry();
     const entries  = Object.values(registry);
     if (entries.length === 0) return interaction.editReply('⚠️ No players registered yet. Use `/register` to add yourself!');
-    const results = await Promise.allSettled(entries.map((e) => scrapeWavuProfile(e.polarisId)));
+    const results = [];
+    for (const entry of entries) {
+      results.push(await scrapeWavuProfile(entry.polarisId).then(v => ({ status: 'fulfilled', value: v })).catch(r => ({ status: 'rejected', reason: r })));
+      await new Promise(r => setTimeout(r, 300));
+    }
 
     const lines = results.map((result, i) => {
       const entry = entries[i];
