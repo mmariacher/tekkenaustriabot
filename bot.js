@@ -109,7 +109,7 @@ function saveRegistry(registry) {
 }
 
 // ─── HTTP helper ──────────────────────────────────────────────────────────────
-function httpGet(hostname, urlPath, headers = {}) {
+function httpGet(hostname, urlPath, headers = {}, maxRedirects = 5) {
   return new Promise((resolve, reject) => {
     const options = {
       hostname,
@@ -119,6 +119,14 @@ function httpGet(hostname, urlPath, headers = {}) {
     };
 
     const req = https.request(options, (res) => {
+      // Follow redirects
+      if ((res.statusCode === 301 || res.statusCode === 302 || res.statusCode === 307 || res.statusCode === 308) && res.headers.location && maxRedirects > 0) {
+        const loc = new URL(res.headers.location, `https://${hostname}`);
+        res.resume();
+        return httpGet(loc.hostname, loc.pathname + loc.search, headers, maxRedirects - 1)
+          .then(resolve).catch(reject);
+      }
+
       const chunks = [];
       res.on('data', (c) => chunks.push(c));
       res.on('end', () => {
