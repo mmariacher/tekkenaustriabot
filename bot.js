@@ -19,6 +19,7 @@ http.createServer((req, res) => res.end('OK')).listen(process.env.PORT || 3000);
 // ─── Config ───────────────────────────────────────────────────────────────────
 const DISCORD_TOKEN  = process.env.DISCORD_TOKEN;
 const CLIENT_ID      = process.env.DISCORD_CLIENT_ID;
+const GUILD_ID       = process.env.GUILD_ID;
 const EWGF_API_KEY   = process.env.EWGF_API_KEY;
 const EWGF_HOST      = 'api.ewgf.gg';
 const WAVU_HOST      = 'wank.wavu.wiki';
@@ -103,8 +104,8 @@ const RANK_COLORS = {
 };
 
 // ─── Player Registry via Supabase ────────────────────────────────────────────
-const SUPABASE_URL = 'https://tpfmddydiculltvwkkqk.supabase.co';
-const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRwZm1kZHlkaWN1bGx0dndra3FrIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3NzM3NzIxNiwiZXhwIjoyMDkyOTUzMjE2fQ.yZ7jVmACx4YP3P71d1ydqmIYnYyqwLlSMdaWCxnZVvo';
+const SUPABASE_URL = process.env.SUPABASE_URL ?? 'https://tpfmddydiculltvwkkqk.supabase.co';
+const SUPABASE_KEY = process.env.SUPABASE_KEY;
 
 async function supabaseRequest(method, path, body = null) {
   return new Promise((resolve, reject) => {
@@ -245,7 +246,6 @@ async function scrapeWavuProfile(polarisId) {
 
   // Ratings — split by <div class="rating"
   const ratingParts = html.split('<div class="rating"');
-  console.log(`[${polarisId}] Found ${ratingParts.length - 1} rating blocks, html length: ${html.length}, preview: ${html.slice(0, 100).replace(/\n/g, ' ')}`);
   for (let i = 1; i < ratingParts.length; i++) {
     const block = ratingParts[i];
     const char     = (block.match(/<div class="char">(.*?)<\/div>/) || [])[1]?.trim();
@@ -344,28 +344,44 @@ function buildBar(pct) {
 }
 
 // ─── Embeds ───────────────────────────────────────────────────────────────────
-function buildProfileEmbed(profile, polarisId) {
-  const topChar = profile.ratings[0];
-  const color = RANK_COLORS[topChar?.char] ?? 0x5865F2;
 
+// Splits lines into multiple embed fields when they would exceed Discord's 1024-char field limit
+function chunkField(lines, fieldName) {
+  const MAX = 1024;
+  const fields = [];
+  let current = '';
+  for (const line of lines) {
+    const next = current ? current + '\n' + line : line;
+    if (next.length > MAX) {
+      fields.push({ name: fields.length === 0 ? fieldName : '​', value: current, inline: false });
+      current = line;
+    } else {
+      current = next;
+    }
+  }
+  if (current) fields.push({ name: fields.length === 0 ? fieldName : '​', value: current, inline: false });
+  return fields;
+}
+
+function buildProfileEmbed(profile, polarisId) {
   const ratingLines = profile.ratings.map((r) => {
     const muStr    = `μ${r.mu}`;
     const sigmaStr = r.sigma2 != null ? ` σ²${r.sigma2}` : '';
     const gamesStr = r.games != null ? ` • ${r.games.toLocaleString()}g` : '';
     const dateStr  = r.lastSeen ? ` • ${r.lastSeen}` : '';
     return `${charEmoji(r.char)} \`${r.char.padEnd(14)}\` ${muStr}${sigmaStr}${gamesStr}${dateStr}`;
-  }).join('\n');
+  });
+
+  const fields = ratingLines.length
+    ? chunkField(ratingLines, '🏅 Glicko2 Ratings')
+    : [{ name: '🏅 Glicko2 Ratings', value: 'No rated characters found.', inline: false }];
 
   return new EmbedBuilder()
     .setColor(0x5865F2)
     .setTitle(`📊 ${profile.name}`)
     .setURL(`https://wank.wavu.wiki/player/${polarisId}`)
     .setDescription(`**ID:** \`${polarisId}\`  •  **Region:** ${profile.region ?? 'Unknown'}`)
-    .addFields({
-      name: '🏅 Glicko2 Ratings',
-      value: ratingLines || 'No rated characters found.',
-      inline: false,
-    })
+    .addFields(...fields)
     .setFooter({ text: 'Data from wank.wavu.wiki' })
     .setTimestamp();
 }
@@ -489,13 +505,13 @@ client.on('interactionCreate', async (interaction) => {
   // ── /unregister ────────────────────────────────────────────────────────────
   if (interaction.commandName === 'unregister') {
     await interaction.deferReply({ flags: 64 });
-    const reg1 = await loadRegistry();
-    if (reg1[interaction.user.id]) {
-      await updateRegistry(r => { delete r[interaction.user.id]; });
-      await interaction.editReply('✅ Your Tekken ID has been unlinked.');
-    } else {
-      await interaction.editReply('⚠️ You have no registered Tekken ID.');
-    }
+    let wasRegistered = false;
+    await updateRegistry(r => {
+      if (r[interaction.user.id]) { wasRegistered = true; delete r[interaction.user.id]; }
+    });
+    await interaction.editReply(wasRegistered
+      ? '✅ Your Tekken ID has been unlinked.'
+      : '⚠️ You have no registered Tekken ID.');
   }
 
 
@@ -526,14 +542,13 @@ client.on('interactionCreate', async (interaction) => {
     }
     const targetUser = interaction.options.getUser('user');
     await interaction.deferReply({ flags: 64 });
-    const reg2 = await loadRegistry();
-    if (reg2[targetUser.id]) {
-      const name = reg2[targetUser.id].name;
-      await updateRegistry(r => { delete r[targetUser.id]; });
-      await interaction.editReply(`✅ Unregistered **${targetUser.username}** (was linked to **${name}**).`);
-    } else {
-      await interaction.editReply(`⚠️ **${targetUser.username}** has no registered Tekken ID.`);
-    }
+    let removedName = null;
+    await updateRegistry(r => {
+      if (r[targetUser.id]) { removedName = r[targetUser.id].name; delete r[targetUser.id]; }
+    });
+    await interaction.editReply(removedName
+      ? `✅ Unregistered **${targetUser.username}** (was linked to **${removedName}**).`
+      : `⚠️ **${targetUser.username}** has no registered Tekken ID.`);
   }
 
   // ── /profile ───────────────────────────────────────────────────────────────
@@ -884,8 +899,8 @@ client.on('interactionCreate', async (interaction) => {
 
 // ─── Register slash commands then start ──────────────────────────────────────
 async function main() {
-  if (!DISCORD_TOKEN || !CLIENT_ID) {
-    console.error('❌ Missing env vars: DISCORD_TOKEN, DISCORD_CLIENT_ID');
+  if (!DISCORD_TOKEN || !CLIENT_ID || !SUPABASE_KEY || !GUILD_ID) {
+    console.error('❌ Missing env vars: DISCORD_TOKEN, DISCORD_CLIENT_ID, SUPABASE_KEY, GUILD_ID');
     process.exit(1);
   }
 
@@ -979,11 +994,15 @@ async function main() {
           .setRequired(false)
       ),
 
+    new SlashCommandBuilder()
+      .setName('roster')
+      .setDescription('Show all registered Tekken Austria players'),
+
   ].map((c) => c.toJSON());
 
   const rest = new REST({ version: '10' }).setToken(DISCORD_TOKEN);
   console.log('⏳ Registering slash commands...');
-  await rest.put(Routes.applicationGuildCommands(CLIENT_ID, '1242957519723303033'), { body: commands });
+  await rest.put(Routes.applicationGuildCommands(CLIENT_ID, GUILD_ID), { body: commands });
   console.log('✅ Slash commands registered globally.');
 
   client.login(DISCORD_TOKEN);
