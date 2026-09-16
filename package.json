@@ -1,15 +1,12 @@
 {
-  "name": "tekken-ewgf-bot",
+  "name": "tekken-austria-bot",
   "version": "1.0.0",
-  "description": "Discord bot for Tekken 8 player stats via ewgf.gg",
   "main": "bot.js",
   "scripts": {
     "start": "node bot.js"
   },
   "dependencies": {
-    "discord.js": "^14.15.3"
-  },
-  "engines": {
-    "node": ">=18"
+    "discord.js": "^14.0.0",
+    "dotenv": "^16.0.0"
   }
 }
