@@ -249,7 +249,7 @@ function httpGet(hostname, urlPath, headers = {}, maxRedirects = 5) {
       path: urlPath,
       method: 'GET',
       headers: {
-        'Accept-Encoding': 'gzip',
+        'Accept-Encoding': 'gzip, deflate, br',
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
         'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
         'Accept-Language': 'en-US,en;q=0.9',
@@ -270,9 +270,12 @@ function httpGet(hostname, urlPath, headers = {}, maxRedirects = 5) {
       res.on('data', (c) => chunks.push(c));
       res.on('end', () => {
         const buf = Buffer.concat(chunks);
-        const decompress = res.headers['content-encoding'] === 'gzip'
-          ? (b) => new Promise((r, x) => zlib.gunzip(b, (e, d) => e ? x(e) : r(d)))
-          : (b) => Promise.resolve(b);
+        const encoding = res.headers['content-encoding'];
+        const decompress =
+          encoding === 'br' ? (b) => new Promise((r, x) => zlib.brotliDecompress(b, (e, d) => e ? x(e) : r(d))) :
+          encoding === 'gzip' ? (b) => new Promise((r, x) => zlib.gunzip(b, (e, d) => e ? x(e) : r(d))) :
+          encoding === 'deflate' ? (b) => new Promise((r, x) => zlib.inflate(b, (e, d) => e ? x(e) : r(d))) :
+          (b) => Promise.resolve(b);
 
         decompress(buf).then((data) => {
           resolve({ status: res.statusCode, body: data.toString('utf8') });
