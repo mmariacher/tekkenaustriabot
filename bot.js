@@ -248,7 +248,13 @@ function httpGet(hostname, urlPath, headers = {}, maxRedirects = 5) {
       hostname,
       path: urlPath,
       method: 'GET',
-      headers: { 'Accept-Encoding': 'gzip', 'User-Agent': 'TekkenAustriaBot/1.0', ...headers },
+      headers: {
+        'Accept-Encoding': 'gzip',
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+        'Accept-Language': 'en-US,en;q=0.9',
+        ...headers,
+      },
     };
 
     const req = https.request(options, (res) => {
@@ -289,6 +295,14 @@ async function scrapeWavuProfile(polarisId) {
   // Name
   const nameMatch = html.match(/<div class="name">\s*([\s\S]*?)\s*<\/div>/);
   if (nameMatch) result.name = nameMatch[1].trim();
+
+  // If we can't even parse a player name, this almost certainly isn't a real
+  // profile page (bot-block/challenge page, unexpected redirect, etc.) rather
+  // than a real player with zero ranked games — treat it as a hard failure so
+  // it surfaces as "Failed to fetch" instead of silently showing as "no ratings".
+  if (!result.name) {
+    throw new Error(`Could not parse player name for ${polarisId} — response may be a block/challenge page, not a real profile (length ${html.length})`);
+  }
 
   // Region
   const regionMatch = html.match(/<span class="region">\s*<a[^>]*>\s*(.*?)\s*<\/a>/);
