@@ -301,6 +301,8 @@ async function scrapeWavuProfile(polarisId) {
   // than a real player with zero ranked games — treat it as a hard failure so
   // it surfaces as "Failed to fetch" instead of silently showing as "no ratings".
   if (!result.name) {
+    const snippet = html.replace(/\s+/g, ' ').trim().slice(0, 500);
+    console.error(`[wavu debug] Unparseable response for ${polarisId} (length ${html.length}):\n${snippet}`);
     throw new Error(`Could not parse player name for ${polarisId} — response may be a block/challenge page, not a real profile (length ${html.length})`);
   }
 
