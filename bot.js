@@ -1,3 +1,4 @@
+require('dotenv').config();
 const { Client, GatewayIntentBits, EmbedBuilder, SlashCommandBuilder, REST, Routes, ButtonBuilder, ButtonStyle, ActionRowBuilder, ComponentType } = require('discord.js');
 const zlib = require('zlib');
 const https = require('https');
@@ -13,13 +14,19 @@ process.on('uncaughtException', (err) => {
   console.error('Uncaught exception:', err?.message ?? err);
 });
 
-// ─── Dummy web server to keep Railway happy ───────────────────────────────────
+// ─── Dummy web server to keep Render's health check happy ────────────────────
 http.createServer((req, res) => res.end('OK')).listen(process.env.PORT || 3000);
+
+// ─── Keep Render free-tier instance awake (spins down after 15 min of no external traffic) ──
+const RENDER_URL = process.env.RENDER_EXTERNAL_URL || 'https://tekkenaustriabot.onrender.com';
+setInterval(() => {
+  https.get(RENDER_URL, (res) => res.resume()).on('error', () => {});
+}, 10 * 60 * 1000); // every 10 minutes — safely under Render's 15-minute idle timeout
 
 // ─── Config ───────────────────────────────────────────────────────────────────
 const DISCORD_TOKEN  = process.env.DISCORD_TOKEN;
 const CLIENT_ID      = process.env.DISCORD_CLIENT_ID;
-const GUILD_ID       = process.env.GUILD_ID;
+const GUILD_ID       = process.env.GUILD_ID ?? '1242957519723303033';
 const EWGF_API_KEY   = process.env.EWGF_API_KEY;
 const EWGF_HOST      = 'api.ewgf.gg';
 const WAVU_HOST      = 'wank.wavu.wiki';
@@ -71,6 +78,49 @@ const CHAR_EMOJI = {
 function charEmoji(char) {
   return CHAR_EMOJI[char] ?? '';
 }
+
+// ─── Character HUD icon URLs (tekkenwarehouse.com) ────────────────────────────
+const CHAR_ICON = {
+  'Alisa':       'https://tekkenwarehouse.com/wp-content/uploads/2024/10/T_UI_HUD_Character_Icon_L_mnt.png',
+  'Anna':        'https://tekkenwarehouse.com/wp-content/uploads/2024/03/HUD_CH_ICON_L_ANN.png',
+  'Armor King':  'https://tekkenwarehouse.com/wp-content/uploads/2024/03/HUD_CH_ICON_L_AKI.png',
+  'Asuka':       'https://tekkenwarehouse.com/wp-content/uploads/2024/10/T_UI_HUD_Character_Icon_L_der.png',
+  'Azucena':     'https://tekkenwarehouse.com/wp-content/uploads/2024/10/T_UI_HUD_Character_Icon_L_cat.png',
+  'Bryan':       'https://tekkenwarehouse.com/wp-content/uploads/2024/10/T_UI_HUD_Character_Icon_L_cht.png',
+  'Claudio':     'https://tekkenwarehouse.com/wp-content/uploads/2024/10/T_UI_HUD_Character_Icon_L_ctr.png',
+  'Clive':       'https://tekkenwarehouse.com/wp-content/uploads/2024/12/T_UI_HUD_Character_Icon_L_okm.png',
+  'Devil Jin':   'https://tekkenwarehouse.com/wp-content/uploads/2024/02/T_UI_HUD_Character_Icon_L_swl4.png',
+  'Dragunov':    'https://tekkenwarehouse.com/wp-content/uploads/2024/10/T_UI_HUD_Character_Icon_L_kmd.png',
+  'Eddy':        'https://tekkenwarehouse.com/wp-content/uploads/2024/03/HUD_CH_ICON_L_EDD.png',
+  'Fahkumram':   'https://tekkenwarehouse.com/wp-content/uploads/2024/03/HUD_CH_ICON_L_NSC.png',
+  'Feng':        'https://tekkenwarehouse.com/wp-content/uploads/2024/10/T_UI_HUD_Character_Icon_L_klw.png',
+  'Heihachi':    'https://tekkenwarehouse.com/wp-content/uploads/2024/03/HUD_CH_ICON_L_HEI.png',
+  'Hwoarang':    'https://tekkenwarehouse.com/wp-content/uploads/2024/10/T_UI_HUD_Character_Icon_L_snk.png',
+  'Jack-8':      'https://tekkenwarehouse.com/wp-content/uploads/2024/10/T_UI_HUD_Character_Icon_L_ccn.png',
+  'Jin':         'https://tekkenwarehouse.com/wp-content/uploads/2024/10/T_UI_HUD_Character_Icon_L_ant.png',
+  'Jun':         'https://tekkenwarehouse.com/wp-content/uploads/2024/10/T_UI_HUD_Character_Icon_L_aml.png',
+  'Kazuya':      'https://tekkenwarehouse.com/wp-content/uploads/2024/02/T_UI_HUD_Character_Icon_L_grl.png',
+  'King':        'https://tekkenwarehouse.com/wp-content/uploads/2024/10/T_UI_HUD_Character_Icon_L_pgn.png',
+  'Kuma':        'https://tekkenwarehouse.com/wp-content/uploads/2024/10/T_UI_HUD_Character_Icon_L_rbt.png',
+  'Lars':        'https://tekkenwarehouse.com/wp-content/uploads/2024/10/T_UI_HUD_Character_Icon_L_lzd.png',
+  'Law':         'https://tekkenwarehouse.com/wp-content/uploads/2024/10/T_UI_HUD_Character_Icon_L_pig.png',
+  'Lee':         'https://tekkenwarehouse.com/wp-content/uploads/2024/10/T_UI_HUD_Character_Icon_L_wlf.png',
+  'Leo':         'https://tekkenwarehouse.com/wp-content/uploads/2024/10/T_UI_HUD_Character_Icon_L_ghp.png',
+  'Leroy':       'https://tekkenwarehouse.com/wp-content/uploads/2024/10/T_UI_HUD_Character_Icon_L_jly.png',
+  'Lidia':       'https://tekkenwarehouse.com/wp-content/uploads/2024/03/HUD_CH_ICON_L_NSD.png',
+  'Lili':        'https://tekkenwarehouse.com/wp-content/uploads/2024/10/T_UI_HUD_Character_Icon_L_hms.png',
+  'Nina':        'https://tekkenwarehouse.com/wp-content/uploads/2024/10/T_UI_HUD_Character_Icon_L_kal.png',
+  'Panda':       'https://tekkenwarehouse.com/wp-content/uploads/2024/10/T_UI_HUD_Character_Icon_L_ttr.png',
+  'Paul':        'https://tekkenwarehouse.com/wp-content/uploads/2024/10/T_UI_HUD_Character_Icon_L_grf.png',
+  'Raven':       'https://tekkenwarehouse.com/wp-content/uploads/2024/10/T_UI_HUD_Character_Icon_L_bbn.png',
+  'Reina':       'https://tekkenwarehouse.com/wp-content/uploads/2024/10/T_UI_HUD_Character_Icon_L_zbr.png',
+  'Shaheen':     'https://tekkenwarehouse.com/wp-content/uploads/2024/10/T_UI_HUD_Character_Icon_L_hrs.png',
+  'Steve':       'https://tekkenwarehouse.com/wp-content/uploads/2024/10/T_UI_HUD_Character_Icon_L_bsn.png',
+  'Victor':      'https://tekkenwarehouse.com/wp-content/uploads/2024/10/T_UI_HUD_Character_Icon_L_lon.png',
+  'Xiaoyu':      'https://tekkenwarehouse.com/wp-content/uploads/2024/10/T_UI_HUD_Character_Icon_L_rat.png',
+  'Yoshimitsu':  'https://tekkenwarehouse.com/wp-content/uploads/2024/10/T_UI_HUD_Character_Icon_L_cml.png',
+  'Zafina':      'https://tekkenwarehouse.com/wp-content/uploads/2024/10/T_UI_HUD_Character_Icon_L_crw.png',
+};
 
 // ─── Rank names ───────────────────────────────────────────────────────────────
 const RANK_NAMES = [
@@ -724,6 +774,7 @@ client.on('interactionCreate', async (interaction) => {
   if (interaction.commandName === 'glicko') {
     const mention = interaction.options.getUser('player');
     await interaction.deferReply();
+    try {
     const registry = await loadRegistry();
     const entries  = Object.values(registry);
 
@@ -863,6 +914,10 @@ client.on('interactionCreate', async (interaction) => {
         interaction.editReply({ components: [row] }).catch(() => {});
       });
     }
+    } catch (err) {
+      console.error('glicko error:', err);
+      await interaction.editReply('❌ Something went wrong building the Glicko2 ranking.').catch(() => {});
+    }
   }
 
   // ── /roster ────────────────────────────────────────────────────────────────
@@ -899,8 +954,8 @@ client.on('interactionCreate', async (interaction) => {
 
 // ─── Register slash commands then start ──────────────────────────────────────
 async function main() {
-  if (!DISCORD_TOKEN || !CLIENT_ID || !SUPABASE_KEY || !GUILD_ID) {
-    console.error('❌ Missing env vars: DISCORD_TOKEN, DISCORD_CLIENT_ID, SUPABASE_KEY, GUILD_ID');
+  if (!DISCORD_TOKEN || !CLIENT_ID || !SUPABASE_KEY) {
+    console.error('❌ Missing env vars: DISCORD_TOKEN, DISCORD_CLIENT_ID, SUPABASE_KEY');
     process.exit(1);
   }
 
@@ -1006,6 +1061,17 @@ async function main() {
   console.log('✅ Slash commands registered globally.');
 
   client.login(DISCORD_TOKEN);
+
+  // Keep Supabase free tier alive (pauses after 1 week of inactivity).
+  // Pings immediately on startup too — setInterval alone only fires after the
+  // first full interval elapses, so if the process never stayed alive that
+  // long (e.g. Render kept restarting it), the ping never actually ran.
+  async function pingSupabase() {
+    try { await supabaseRequest('GET', '/rest/v1/registry?select=count&limit=1'); }
+    catch (e) { console.error('Supabase keep-alive ping failed:', e.message); }
+  }
+  pingSupabase();
+  setInterval(pingSupabase, 24 * 60 * 60 * 1000); // every 1 day
 }
 
 main().catch(console.error);
